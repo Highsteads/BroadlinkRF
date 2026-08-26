@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<PluginConfig>
+    <SupportURL>https://github.com/mjg59/python-broadlink</SupportURL>
+    <Field id="intro" type="label">
+        <Label>Broadlink RF provides configurable RM4 Pro devices and RF command devices. It imports the existing code store by default.</Label>
+    </Field>
+    <Field id="defaultHost" type="textfield" defaultValue="192.168.1.100">
+        <Label>Default RM4 Pro IP:</Label>
+    </Field>
+    <Field id="defaultPort" type="textfield" defaultValue="80">
+        <Label>Default port:</Label>
+    </Field>
+    <Field id="defaultFrequency" type="textfield" defaultValue="433.92">
+        <Label>Default RF frequency (MHz):</Label>
+        <Description>Use 433.92 for the existing captures. Leave blank only when using frequency scan.</Description>
+    </Field>
+    <Field id="defaultRepeat" type="menu" defaultValue="3">
+        <Label>Default transmit repeats:</Label>
+        <List>
+            <Option value="1">1</Option>
+            <Option value="2">2</Option>
+            <Option value="3">3</Option>
+            <Option value="5">5</Option>
+        </List>
+    </Field>
+    <Field id="codeStorePath" type="textfield" defaultValue="/Library/Application Support/Perceptive Automation/Python Scripts/broadlink_codes.json">
+        <Label>RF code store:</Label>
+        <Description>Existing Broadlink RF captures are read from this JSON file.</Description>
+    </Field>
+    <Field id="debugLogging" type="checkbox" defaultValue="false">
+        <Label>Debug logging:</Label>
+    </Field>
+</PluginConfig>

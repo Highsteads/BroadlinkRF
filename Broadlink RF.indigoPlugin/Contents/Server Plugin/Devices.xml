@@ -1,0 +1,196 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Devices>
+    <Device type="custom" id="rm4Pro">
+        <Name>Broadlink RM4 Pro</Name>
+        <ConfigUI>
+            <SupportURL>https://github.com/mjg59/python-broadlink</SupportURL>
+            <Field id="host" type="textfield" defaultValue="192.168.1.100">
+                <Label>RM4 Pro IP address:</Label>
+            </Field>
+            <Field id="port" type="textfield" defaultValue="80">
+                <Label>Port:</Label>
+            </Field>
+            <Field id="frequency" type="textfield" defaultValue="433.92">
+                <Label>RF frequency (MHz):</Label>
+            </Field>
+            <Field id="repeat" type="menu" defaultValue="3">
+                <Label>Transmit repeats:</Label>
+                <List>
+                    <Option value="1">1</Option>
+                    <Option value="2">2</Option>
+                    <Option value="3">3</Option>
+                    <Option value="5">5</Option>
+                </List>
+            </Field>
+            <Field id="codeStorePath" type="textfield" defaultValue="/Library/Application Support/Perceptive Automation/Python Scripts/broadlink_codes.json">
+                <Label>RF code store:</Label>
+            </Field>
+        </ConfigUI>
+        <States>
+            <State id="connectionState">
+                <ValueType>String</ValueType>
+                <TriggerLabel>Connection State</TriggerLabel>
+                <ControlPageLabel>Connection State</ControlPageLabel>
+            </State>
+            <State id="firmwareVersion">
+                <ValueType>String</ValueType>
+                <TriggerLabel>Firmware Version</TriggerLabel>
+                <ControlPageLabel>Firmware Version</ControlPageLabel>
+            </State>
+            <State id="configuredFrequency">
+                <ValueType>Number</ValueType>
+                <TriggerLabel>RF Frequency</TriggerLabel>
+                <ControlPageLabel>RF Frequency</ControlPageLabel>
+            </State>
+            <State id="codeCount">
+                <ValueType>Integer</ValueType>
+                <TriggerLabel>Stored RF Code Count</TriggerLabel>
+                <ControlPageLabel>Stored RF Code Count</ControlPageLabel>
+            </State>
+            <State id="lastCommand">
+                <ValueType>String</ValueType>
+                <TriggerLabel>Last Command</TriggerLabel>
+                <ControlPageLabel>Last Command</ControlPageLabel>
+            </State>
+            <State id="lastResult">
+                <ValueType>String</ValueType>
+                <TriggerLabel>Last Result</TriggerLabel>
+                <ControlPageLabel>Last Result</ControlPageLabel>
+            </State>
+            <State id="lastError">
+                <ValueType>String</ValueType>
+                <TriggerLabel>Last Error</TriggerLabel>
+                <ControlPageLabel>Last Error</ControlPageLabel>
+            </State>
+            <State id="lastSentAt">
+                <ValueType>String</ValueType>
+                <TriggerLabel>Last Sent At</TriggerLabel>
+                <ControlPageLabel>Last Sent At</ControlPageLabel>
+            </State>
+            <State id="sentCount">
+                <ValueType>Integer</ValueType>
+                <TriggerLabel>Sent Count</TriggerLabel>
+                <ControlPageLabel>Sent Count</ControlPageLabel>
+            </State>
+        </States>
+        <UiDisplayStateId>connectionState</UiDisplayStateId>
+    </Device>
+
+    <Device type="custom" id="rfCommand">
+        <Name>Broadlink RF Command</Name>
+        <ConfigUI>
+            <SupportURL>https://github.com/mjg59/python-broadlink</SupportURL>
+            <Field id="hubDevice" type="menu">
+                <Label>RM4 Pro:</Label>
+                <List class="self" method="hub_devices" dynamicReload="true"/>
+            </Field>
+            <Field id="codeName" type="menu">
+                <Label>RF command:</Label>
+                <List class="self" method="available_codes" dynamicReload="true"/>
+            </Field>
+            <Field id="repeatOverride" type="menu" defaultValue="">
+                <Label>Repeat override:</Label>
+                <List>
+                    <Option value="">Use RM4 default</Option>
+                    <Option value="1">1</Option>
+                    <Option value="2">2</Option>
+                    <Option value="3">3</Option>
+                    <Option value="5">5</Option>
+                </List>
+            </Field>
+            <Field id="description" type="label">
+                <Label>Use the device action “Send RF Command”, or use the plugin menu to learn a new code. The command name is selected here and never needs to be edited in Python.</Label>
+            </Field>
+        </ConfigUI>
+        <States>
+            <State id="selectedCode">
+                <ValueType>String</ValueType>
+                <TriggerLabel>Selected RF Code</TriggerLabel>
+                <ControlPageLabel>Selected RF Code</ControlPageLabel>
+            </State>
+            <State id="selectedFrequency">
+                <ValueType>Number</ValueType>
+                <TriggerLabel>Selected RF Frequency</TriggerLabel>
+                <ControlPageLabel>Selected RF Frequency</ControlPageLabel>
+            </State>
+            <State id="lastResult">
+                <ValueType>String</ValueType>
+                <TriggerLabel>Last Result</TriggerLabel>
+                <ControlPageLabel>Last Result</ControlPageLabel>
+            </State>
+            <State id="lastError">
+                <ValueType>String</ValueType>
+                <TriggerLabel>Last Error</TriggerLabel>
+                <ControlPageLabel>Last Error</ControlPageLabel>
+            </State>
+            <State id="lastSentAt">
+                <ValueType>String</ValueType>
+                <TriggerLabel>Last Sent At</TriggerLabel>
+                <ControlPageLabel>Last Sent At</ControlPageLabel>
+            </State>
+            <State id="sentCount">
+                <ValueType>Integer</ValueType>
+                <TriggerLabel>Sent Count</TriggerLabel>
+                <ControlPageLabel>Sent Count</ControlPageLabel>
+            </State>
+        </States>
+        <UiDisplayStateId>lastResult</UiDisplayStateId>
+    </Device>
+
+    <Device type="relay" id="rfRelay">
+        <Name>Broadlink RF Relay</Name>
+        <ConfigUI>
+            <SupportURL>https://github.com/mjg59/python-broadlink</SupportURL>
+            <Field id="hubDevice" type="menu">
+                <Label>RM4 Pro:</Label>
+                <List class="self" method="hub_devices" dynamicReload="true"/>
+            </Field>
+            <Field id="onCodeName" type="menu">
+                <Label>On RF command:</Label>
+                <List class="self" method="available_codes" dynamicReload="true"/>
+            </Field>
+            <Field id="offCodeName" type="menu">
+                <Label>Off RF command:</Label>
+                <List class="self" method="available_codes" dynamicReload="true"/>
+            </Field>
+            <Field id="repeatOverride" type="menu" defaultValue="">
+                <Label>Repeat override:</Label>
+                <List>
+                    <Option value="">Use RM4 default</Option>
+                    <Option value="1">1</Option>
+                    <Option value="2">2</Option>
+                    <Option value="3">3</Option>
+                    <Option value="5">5</Option>
+                </List>
+            </Field>
+        </ConfigUI>
+        <States>
+            <State id="lastCommand">
+                <ValueType>String</ValueType>
+                <TriggerLabel>Last Command</TriggerLabel>
+                <ControlPageLabel>Last Command</ControlPageLabel>
+            </State>
+            <State id="lastResult">
+                <ValueType>String</ValueType>
+                <TriggerLabel>Last Result</TriggerLabel>
+                <ControlPageLabel>Last Result</ControlPageLabel>
+            </State>
+            <State id="lastError">
+                <ValueType>String</ValueType>
+                <TriggerLabel>Last Error</TriggerLabel>
+                <ControlPageLabel>Last Error</ControlPageLabel>
+            </State>
+            <State id="lastSentAt">
+                <ValueType>String</ValueType>
+                <TriggerLabel>Last Sent At</TriggerLabel>
+                <ControlPageLabel>Last Sent At</ControlPageLabel>
+            </State>
+            <State id="sentCount">
+                <ValueType>Integer</ValueType>
+                <TriggerLabel>Sent Count</TriggerLabel>
+                <ControlPageLabel>Sent Count</ControlPageLabel>
+            </State>
+        </States>
+        <UiDisplayStateId>onOffState</UiDisplayStateId>
+    </Device>
+</Devices>

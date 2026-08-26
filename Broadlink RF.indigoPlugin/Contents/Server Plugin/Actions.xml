@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Actions>
+    <SupportURL>https://github.com/mjg59/python-broadlink</SupportURL>
+    <Action id="sendRfCommand" deviceFilter="self">
+        <Name>Send RF Command</Name>
+        <CallbackMethod>send_rf_command</CallbackMethod>
+    </Action>
+    <Action id="learnRfCommand" deviceFilter="self">
+        <Name>Learn RF Command...</Name>
+        <CallbackMethod>learn_rf_command</CallbackMethod>
+        <ConfigUI>
+            <SupportURL>https://github.com/mjg59/python-broadlink</SupportURL>
+            <Field id="codeName" type="textfield" defaultValue="new_code">
+                <Label>Save as code name:</Label>
+            </Field>
+            <Field id="frequency" type="textfield" defaultValue="433.92">
+                <Label>Frequency (MHz):</Label>
+                <Description>Use blank or 0 to scan; 433.92 is recommended for your existing RM4 Pro.</Description>
+            </Field>
+        </ConfigUI>
+    </Action>
+    <Action id="scanRfFrequency" deviceFilter="self">
+        <Name>Scan RF Frequency</Name>
+        <CallbackMethod>scan_rf_frequency</CallbackMethod>
+    </Action>
+    <Action id="sendHubCode" deviceFilter="self">
+        <Name>Send Code from RM4 Pro</Name>
+        <CallbackMethod>send_hub_code</CallbackMethod>
+        <ConfigUI>
+            <SupportURL>https://github.com/mjg59/python-broadlink</SupportURL>
+            <Field id="codeName" type="menu">
+                <Label>RF command:</Label>
+                <List class="self" method="available_codes" dynamicReload="true"/>
+            </Field>
+        </ConfigUI>
+    </Action>
+    <Action id="importCodes" deviceFilter="self">
+        <Name>Reload RF Code Store</Name>
+        <CallbackMethod>import_codes</CallbackMethod>
+    </Action>
+    <Action id="diagnoseHub" deviceFilter="self">
+        <Name>Diagnose RM4 Pro</Name>
+        <CallbackMethod>diagnose_hub</CallbackMethod>
+    </Action>
+</Actions>

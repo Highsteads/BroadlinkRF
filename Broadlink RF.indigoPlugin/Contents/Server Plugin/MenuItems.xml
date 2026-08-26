@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<MenuItems>
+    <MenuItem id="learnRfFromMenu">
+        <Name>Learn RF Command...</Name>
+        <CallbackMethod>learn_rf_from_menu</CallbackMethod>
+        <ButtonTitle>Start Learning</ButtonTitle>
+        <ConfigUI>
+            <SupportURL>https://github.com/mjg59/python-broadlink</SupportURL>
+            <Field id="hubDevice" type="menu">
+                <Label>RM4 Pro:</Label>
+                <List class="self" method="hub_devices" dynamicReload="true"/>
+            </Field>
+            <Field id="codeName" type="textfield" defaultValue="new_code">
+                <Label>Save as code name:</Label>
+            </Field>
+            <Field id="frequency" type="textfield" defaultValue="433.92">
+                <Label>Frequency (MHz):</Label>
+                <Description>Use blank or 0 to scan; known fixed frequency is more reliable.</Description>
+            </Field>
+        </ConfigUI>
+    </MenuItem>
+    <MenuItem id="importCodes">
+        <Name>Reload RF Code Store</Name>
+        <CallbackMethod>import_codes_from_menu</CallbackMethod>
+    </MenuItem>
+    <MenuItem id="listCodes">
+        <Name>List Stored RF Codes</Name>
+        <CallbackMethod>list_codes</CallbackMethod>
+    </MenuItem>
+    <MenuItem id="diagnoseHubs">
+        <Name>Diagnose RM4 Pro Devices</Name>
+        <CallbackMethod>diagnose_hubs</CallbackMethod>
+    </MenuItem>
+    <MenuItem id="discoverHubs">
+        <Name>Discover Broadlink Devices</Name>
+        <CallbackMethod>discover_hubs</CallbackMethod>
+    </MenuItem>
+</MenuItems>
