@@ -1,7 +1,16 @@
 ####################
 # Broadlink RF for Indigo
 # Local-LAN RF control for Broadlink RM4 Pro devices.
+# Version: 1.1.0
 ####################
+#
+# v1.1.0 (28-08-2026): actionControlDevice handles kDeviceAction.Toggle.
+# Indigo does NOT resolve a toggle into TurnOn/TurnOff — it passes Toggle
+# straight through, and a plugin without that branch does nothing at all: no
+# RF, no state change, no error line. Every dashboard and control-page tile
+# sends a toggle, so pressing the fire tile had been a silent no-op since the
+# plugin shipped. An `else` now warns on any other action, because "called and
+# did nothing" and "never called" look identical in an empty log.
 
 try:
     import indigo
@@ -163,8 +172,34 @@ class Plugin(indigo.PluginBase):
             code_name = str(dev.pluginProps.get("offCodeName", ""))
             if self._send_from_device(dev, code_name):
                 dev.updateStateOnServer("onOffState", False)
+        elif action.deviceAction == indigo.kDeviceAction.Toggle:
+            # Indigo does NOT resolve a toggle into TurnOn/TurnOff — it passes
+            # kDeviceAction.Toggle straight through, and a plugin that does not
+            # implement it simply does nothing. No RF, no state change, no error
+            # line: the press is silently swallowed. That is what every dashboard
+            # and control-page tile on this device was doing, because those send
+            # a toggle rather than an explicit on/off.
+            #
+            # THE STATE WE FLIP FROM IS A BELIEF, NOT A READING. This relay is
+            # one-way, so onOffState is only what was last transmitted. If the
+            # fire was lit by its own handset the belief says off, and a toggle
+            # will therefore send ON. That is inherent to a device with no
+            # return path — use the explicit Turn On / Turn Off actions when you
+            # need to ASSERT a state rather than flip one.
+            turning_on = not dev.onState
+            code_name  = str(dev.pluginProps.get(
+                "onCodeName" if turning_on else "offCodeName", ""))
+            if self._send_from_device(dev, code_name):
+                dev.updateStateOnServer("onOffState", turning_on)
         elif action.deviceAction == indigo.kUniversalAction.RequestStatus:
             self._update_states(dev, lastResult="RF devices do not report state; last command retained")
+        else:
+            # Anything else is a command this device cannot honour. Say so:
+            # without this, "called and did nothing" and "never called at all"
+            # look identical in an empty log, and they have different causes.
+            self.logger.warning(
+                f'"{dev.name}" received {action.deviceAction!r}, which an RF relay '
+                f'cannot perform — ignored')
 
     # ------------------------------------------------------------------
     # Dynamic lists and menu dialogs
