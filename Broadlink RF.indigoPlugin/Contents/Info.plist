@@ -12,13 +12,13 @@
 	<array>
 		<dict>
 			<key>CFBundleURLName</key>
-			<string>https://github.com/mjg59/python-broadlink</string>
+			<string>https://github.com/Highsteads/BroadlinkRF</string>
 		</dict>
 	</array>
 	<key>CFBundleVersion</key>
 	<string>1.0.0</string>
 	<key>PluginVersion</key>
-	<string>1.1.0</string>
+	<string>1.2.0</string>
 	<key>ServerApiVersion</key>
 	<string>3.0</string>
 </dict>

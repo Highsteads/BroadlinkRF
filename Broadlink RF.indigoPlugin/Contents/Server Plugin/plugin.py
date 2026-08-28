@@ -1,8 +1,14 @@
 ####################
 # Broadlink RF for Indigo
 # Local-LAN RF control for Broadlink RM4 Pro devices.
-# Version: 1.1.0
+# Version: 1.2.0
 ####################
+#
+# v1.2.0 (28-08-2026): ships a requirements.txt so Indigo installs the broadlink
+# package itself. Until now the plugin imported it bare and only worked on a
+# machine that already happened to have it, so a fresh install logged "the
+# broadlink Python package is unavailable" and did nothing else. Also points
+# CFBundleURLTypes at this plugin's own repository rather than upstream's.
 #
 # v1.1.0 (28-08-2026): actionControlDevice handles kDeviceAction.Toggle.
 # Indigo does NOT resolve a toggle into TurnOn/TurnOff — it passes Toggle
