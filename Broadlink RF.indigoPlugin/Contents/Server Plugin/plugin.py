@@ -1,8 +1,11 @@
 ####################
 # Broadlink RF for Indigo
 # Local-LAN RF control for Broadlink RM4 Pro devices.
-# Version: 1.2.0
+# Version: 1.2.1
 ####################
+#
+# v1.2.1 (11-09-2026): removed an unused `import logging`, found the day the repo
+# gained its ruff gate, CI workflow and version guard. No behaviour change.
 #
 # v1.2.0 (28-08-2026): ships a requirements.txt so Indigo installs the broadlink
 # package itself. Until now the plugin imported it bare and only worked on a
@@ -25,7 +28,6 @@ except ImportError:
 
 import ipaddress
 import json
-import logging
 import os
 import threading
 from datetime import datetime

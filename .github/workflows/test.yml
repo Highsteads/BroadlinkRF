@@ -1,0 +1,31 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"   # matches Indigo 2025.2's embedded Python
+      - name: Syntax check
+        run: python -m compileall -q "Broadlink RF.indigoPlugin/Contents/Server Plugin"
+      - name: Lint (ruff — errors only, see ruff.toml)
+        run: |
+          pip install ruff
+          ruff check .
+      # tests/ holds the estate's version-consistency guard (added 11-Sep-2026).
+      - name: Tests (pytest)
+        run: |
+          pip install pytest
+          python -m pytest tests -q

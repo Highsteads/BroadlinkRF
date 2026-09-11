@@ -9,3 +9,6 @@ __pycache__/
 Contents/Packages/
 **/Contents/Packages/
 *.indigoPlugin.zip
+
+# Local repo notes — never published (house convention)
+CLAUDE.md
