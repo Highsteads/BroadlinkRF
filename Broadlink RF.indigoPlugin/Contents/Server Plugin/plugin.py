@@ -1,8 +1,12 @@
 ####################
 # Broadlink RF for Indigo
 # Local-LAN RF control for Broadlink RM4 Pro devices.
-# Version: 1.2.1
+# Version: 1.2.2
 ####################
+#
+# v1.2.2 (11-09-2026): GITHUBINFO. The bundle now carries the standard GitHub record
+# (GithubInfo: GithubUser/GithubRepo), as the Indigo Domotics and community plugins do.
+# No behaviour change.
 #
 # v1.2.1 (11-09-2026): removed an unused `import logging`, found the day the repo
 # gained its ruff gate, CI workflow and version guard. No behaviour change.

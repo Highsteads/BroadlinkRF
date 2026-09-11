@@ -1,6 +1,6 @@
 # Broadlink RF for Indigo
 
-**Version:** 1.2.1
+**Version:** 1.2.2
 
 Local-LAN control of Broadlink RM4 Pro RF commands, with no cloud account and no
 bridge in the middle. Learn a code from a remote you already own, give it a name,
