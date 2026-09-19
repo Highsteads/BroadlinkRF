@@ -1,8 +1,32 @@
 ####################
 # Broadlink RF for Indigo
 # Local-LAN RF control for Broadlink RM4 Pro devices.
-# Version: 1.2.2
+# Version: 1.3.0
 ####################
+#
+# v1.3.0 (19-09-2026): WATCHDOG. The hub is now checked on a timer, and can be
+# brought back by cutting its power.
+#
+# An RM4 Pro that falls off the network says nothing. It stops answering, and
+# because this plugin only ever spoke to it on demand, the first symptom was a
+# command that did not arrive. On 19-09-2026 the living room access point
+# rebooted; every other device in the room re-associated within minutes and the
+# RM4 Pro never did. It sat silent for two hours and forty-two minutes and came
+# back ten minutes after its power was pulled by hand.
+#
+# Nothing could have noticed. Indigo refreshes lastSuccessfulComm on ANY state
+# write, and this plugin writes lastError and lastResult on every FAILED send —
+# so the more reliably it failed, the more recently it appeared to have
+# communicated, and no check based on comm age could ever fire.
+#
+# The hub device now carries a Watchdog section: how often to check, and
+# optionally which switch or smart plug the hub is plugged into. It reports the
+# hub missing once (as an error, and on the device's own error state, so it
+# shows red and a health monitor can see it), says how long it was away when it
+# returns, and with a switch configured it cuts the power after a set delay.
+# It allows fifteen minutes between attempts, because one of these takes about
+# ten minutes to rejoin a network, and it stops after the configured number of
+# attempts rather than cycling a dead unit all night.
 #
 # v1.2.2 (11-09-2026): GITHUBINFO. The bundle now carries the standard GitHub record
 # (GithubInfo: GithubUser/GithubRepo), as the Indigo Domotics and community plugins do.
@@ -52,6 +76,7 @@ class Plugin(indigo.PluginBase):
         self._code_mtimes = {}
         self._stopping = False
         self._broadlink = None
+        self._last_probe = {}
 
     # ------------------------------------------------------------------
     # Indigo lifecycle and configuration
@@ -144,12 +169,31 @@ class Plugin(indigo.PluginBase):
 
     def deviceStartComm(self, dev):
         if dev.deviceTypeId == "rm4Pro":
+            # A device created before these states existed does not have them,
+            # and Indigo REFUSES the write with "state key <id> not defined
+            # (ignoring update request)" -- an error per key, per pass, and no
+            # watchdog state ever recorded. Adding them to Devices.xml is not
+            # enough; the device has to be told its state list has changed, and
+            # then re-fetched, because the object in hand still has the old one.
+            dev = self._adopt_new_states(dev, self.WATCHDOG_STATES)
+            # Seed the watchdog states with what they already hold rather than a
+            # blank. A state only appears in Indigo once it has been written, but
+            # unreachableSince is the latch that stops the plugin shouting about
+            # the same outage twice -- clearing it on every restart would turn
+            # "say it once" into "say it once per restart".
+            was_missing = str(dev.states.get("unreachableSince") or "").strip()
             self._update_states(
                 dev,
-                connectionState="Configured",
+                connectionState="Unreachable" if was_missing else "Configured",
                 configuredFrequency=self._hub_frequency(dev),
                 codeCount=len(self._load_codes(dev)),
+                lastCheckedAt=str(dev.states.get("lastCheckedAt") or ""),
+                unreachableSince=was_missing,
+                recoveryAttempts=self._state_int(dev, "recoveryAttempts"),
+                lastRecoveryAt=str(dev.states.get("lastRecoveryAt") or ""),
             )
+            if was_missing:
+                self._set_error_state(dev, "unreachable")
         elif dev.deviceTypeId == "rfCommand":
             name = str(dev.pluginProps.get("codeName", ""))
             entry = self._load_codes(self._hub_for_command(dev)).get(name, {})
@@ -170,6 +214,260 @@ class Plugin(indigo.PluginBase):
 
     def deviceUpdated(self, orig_dev, new_dev):
         super().deviceUpdated(orig_dev, new_dev)
+
+    # ------------------------------------------------------------------
+    # Hub watchdog
+    # ------------------------------------------------------------------
+    #
+    # An RM4 Pro that falls off the network says nothing whatsoever. It stops
+    # answering, and the plugin only finds out when something asks it to
+    # transmit -- so the first symptom is a command that does not arrive, and
+    # on 19-09-2026 that hid a three-hour outage. The hub's access point had
+    # rebooted; every other device in the room re-associated within minutes and
+    # the RM4 Pro never did. It came back ten minutes after its power was cut
+    # by hand.
+    #
+    # Worse, the device looked healthy throughout. Indigo refreshes
+    # lastSuccessfulComm on ANY state write, and this plugin writes lastError
+    # and lastResult on every FAILED send -- so the more consistently it failed,
+    # the more recently it appeared to have communicated. Nothing watching comm
+    # age could ever have noticed.
+    #
+    # So the watchdog asks the hub directly on a timer, records the answer where
+    # a human and a health monitor can both see it, and -- given a switch to do
+    # it with -- cuts the power, which is the only thing known to bring one of
+    # these back.
+
+    WATCHDOG_TICK_SECONDS = 30      # loop granularity; each hub keeps its own interval
+    PROBE_TIMEOUT_SECONDS = 4
+    PROBE_ATTEMPTS = 2              # one missed probe is not evidence of absence
+    RECOVERY_GRACE_MINUTES = 15     # measured: an RM4 Pro takes ~10 min to rejoin
+
+    def runConcurrentThread(self):
+        try:
+            while True:
+                # The whole body is guarded. One bad pass must log and carry on,
+                # never take the watchdog down and leave the hub unwatched.
+                try:
+                    self._watchdog_pass()
+                except Exception:
+                    self.logger.exception("Broadlink RF watchdog pass failed")
+                # StopThread is raised out of self.sleep() and nowhere else, so
+                # every wait in this loop has to go through it.
+                self.sleep(self.WATCHDOG_TICK_SECONDS)
+        except self.StopThread:
+            pass
+
+    def _watchdog_pass(self):
+        if self._stopping or self._broadlink is None:
+            return
+        # A learn holds the hub in a listening mode of its own. Probing it
+        # mid-learn would both disturb the capture and overwrite the
+        # connectionState the learn is using to report progress.
+        if self._learn_lock.locked():
+            return
+        now = self._monotonic()
+        for dev in indigo.devices.iter("self"):
+            if dev.deviceTypeId != "rm4Pro" or not dev.enabled:
+                continue
+            interval = self._as_int(dev.pluginProps.get("heartbeatMinutes", 5), 5)
+            if interval <= 0:
+                continue
+            last = self._last_probe.get(dev.id, 0.0)
+            if last and (now - last) < interval * 60:
+                continue
+            self._last_probe[dev.id] = now
+            self._check_hub(dev)
+
+    def _check_hub(self, hub_id_or_dev):
+        # Always work from a freshly fetched device. The copy handed out by
+        # devices.iter() is a snapshot, and the watchdog reads states it has
+        # written on a previous pass.
+        dev = self._refetch(hub_id_or_dev)
+        if dev is None:
+            return
+        stamp = datetime.now()
+        if self._hub_answers(dev):
+            self._hub_answered(dev, stamp)
+        else:
+            self._hub_went_quiet(dev, stamp)
+
+    def _hub_answers(self, dev):
+        host = self._hub_host(dev)
+        if not host:
+            return False
+        port = self._as_int(dev.pluginProps.get("port", self.pluginPrefs.get("defaultPort", 80)), 80)
+        for attempt in range(max(1, self.PROBE_ATTEMPTS)):
+            try:
+                self._broadlink.hello(host, port=port, timeout=self.PROBE_TIMEOUT_SECONDS)
+                return True
+            except Exception as exc:
+                self.logger.debug("Probe %d of %d for '%s' failed: %s",
+                                  attempt + 1, self.PROBE_ATTEMPTS, dev.name, exc)
+        return False
+
+    def _hub_answered(self, dev, stamp):
+        checked = stamp.strftime("%Y-%m-%d %H:%M:%S")
+        since = str(dev.states.get("unreachableSince") or "").strip()
+        if not since:
+            self._update_states(dev, connectionState="Connected", lastCheckedAt=checked)
+            return
+        # It was missing and has come back. Say so with the outage length --
+        # that is the number worth having, and nothing else records it.
+        self._update_states(
+            dev,
+            connectionState="Connected",
+            lastCheckedAt=checked,
+            unreachableSince="",
+            recoveryAttempts=0,
+            lastError="",
+        )
+        self._set_error_state(dev, "")
+        self.logger.info("'%s' is answering again after %s away.",
+                         dev.name, self._describe_gap(since, stamp))
+
+    def _hub_went_quiet(self, dev, stamp):
+        checked = stamp.strftime("%Y-%m-%d %H:%M:%S")
+        since = str(dev.states.get("unreachableSince") or "").strip()
+        if not since:
+            # First miss. Latch it in a DEVICE STATE rather than memory, so the
+            # "say it once" survives a plugin restart instead of resetting and
+            # shouting again.
+            self._update_states(
+                dev,
+                connectionState="Unreachable",
+                lastCheckedAt=checked,
+                unreachableSince=checked,
+                recoveryAttempts=0,
+            )
+            self._set_error_state(dev, "unreachable")
+            self.logger.error(
+                "'%s' has stopped answering at %s. Nothing can be sent over RF until it returns.",
+                dev.name, self._hub_host(dev) or "its configured address")
+            return
+
+        self._update_states(dev, connectionState="Unreachable", lastCheckedAt=checked)
+        self._attempt_recovery(dev, since, stamp)
+
+    def _attempt_recovery(self, dev, since, stamp):
+        plug_id = self._as_int(dev.pluginProps.get("recoveryPlug", 0), 0)
+        if plug_id <= 0:
+            return                                    # nothing to switch; reporting only
+        max_attempts = self._as_int(dev.pluginProps.get("recoveryMaxAttempts", 2), 2)
+        attempts = self._state_int(dev, "recoveryAttempts")
+        if attempts >= max_attempts:
+            return                                    # already given up, and already said so
+
+        after = self._as_int(dev.pluginProps.get("recoveryAfterMinutes", 10), 10)
+        down_minutes = self._minutes_between(since, stamp)
+        if down_minutes is None or down_minutes < after:
+            return
+
+        # Leave a gap between attempts. One of these takes about ten minutes to
+        # rejoin a network after losing power, so cycling again too soon would
+        # interrupt the very recovery it is waiting for.
+        last_recovery = str(dev.states.get("lastRecoveryAt") or "").strip()
+        if last_recovery:
+            gap = self._minutes_between(last_recovery, stamp)
+            if gap is not None and gap < self.RECOVERY_GRACE_MINUTES:
+                return
+
+        plug = self._device_from_id(plug_id)
+        if plug is None:
+            self.logger.error(
+                "'%s' cannot be power-cycled: the switch chosen for it (id %s) no longer exists.",
+                dev.name, plug_id)
+            return
+
+        off_seconds = self._as_int(dev.pluginProps.get("recoveryOffSeconds", 10), 10)
+        off_seconds = max(1, min(off_seconds, 60))
+        try:
+            # duration= schedules the switch-on with the SERVER, so the hub
+            # cannot be left powered off if this plugin restarts mid-cycle.
+            indigo.device.turnOff(plug.id, duration=off_seconds)
+        except Exception as exc:
+            self.logger.error("Could not power-cycle '%s' for '%s': %s", plug.name, dev.name, exc)
+            return
+
+        attempts += 1
+        self._update_states(
+            dev,
+            recoveryAttempts=attempts,
+            lastRecoveryAt=stamp.strftime("%Y-%m-%d %H:%M:%S"),
+        )
+        self.logger.info(
+            "'%s' has been missing for %s, so '%s' goes off for %d seconds to restart it "
+            "(attempt %d of %d).",
+            dev.name, self._describe_gap(since, stamp), plug.name, off_seconds,
+            attempts, max_attempts)
+        if attempts >= max_attempts:
+            # Terminate, and say so once. A dead unit must not be cycled all night.
+            self.logger.error(
+                "'%s' has now been power-cycled %d time(s) without coming back. "
+                "Leaving it alone -- it needs looking at.",
+                dev.name, attempts)
+
+    def switchable_devices(self, filter_str="", values_dict=None, type_id="", target_id=0):
+        """Relay devices the watchdog could cut power with, for the hub's config dialog."""
+        options = [("0", "None -- report only")]
+        for dev in indigo.devices.iter("indigo.relay"):
+            if dev.pluginId == self.pluginId:
+                continue          # our own RF relays are one-way; they cannot cut mains
+            options.append((str(dev.id), dev.name))
+        return options
+
+    # -- watchdog helpers ----------------------------------------------
+
+    WATCHDOG_STATES = ("lastCheckedAt", "unreachableSince", "recoveryAttempts", "lastRecoveryAt")
+
+    def _adopt_new_states(self, dev, keys):
+        """Make sure a device carries `keys`, re-reading it if its list changed."""
+        if all(key in dev.states for key in keys):
+            return dev
+        try:
+            dev.stateListOrDisplayStateIdChanged()
+        except Exception as exc:
+            self.logger.debug("Could not refresh the state list for '%s': %s", dev.name, exc)
+            return dev
+        return self._refetch(dev) or dev
+
+    def _refetch(self, dev_or_id):
+        dev_id = getattr(dev_or_id, "id", dev_or_id)
+        return self._device_from_id(dev_id)
+
+    def _set_error_state(self, dev, message):
+        """Show the fault on the device itself, so Indigo and any health monitor see it."""
+        try:
+            dev.setErrorStateOnServer(message)
+        except Exception as exc:
+            self.logger.debug("Could not set the error state on '%s': %s", dev.name, exc)
+
+    @staticmethod
+    def _minutes_between(stamp_text, now):
+        try:
+            then = datetime.strptime(str(stamp_text).strip(), "%Y-%m-%d %H:%M:%S")
+        except (TypeError, ValueError):
+            return None
+        return max(0.0, (now.timestamp() - then.timestamp()) / 60.0)
+
+    @classmethod
+    def _describe_gap(cls, stamp_text, now):
+        """A gap in the words a person uses, never a bare number of minutes."""
+        minutes = cls._minutes_between(stamp_text, now)
+        if minutes is None:
+            return "an unknown time"
+        minutes = int(round(minutes))
+        if minutes < 1:
+            return "less than a minute"
+        if minutes == 1:
+            return "1 minute"
+        if minutes < 60:
+            return "%d minutes" % minutes
+        hours, rest = divmod(minutes, 60)
+        hour_text = "1 hour" if hours == 1 else "%d hours" % hours
+        if rest == 0:
+            return hour_text
+        return "%s and %s" % (hour_text, "1 minute" if rest == 1 else "%d minutes" % rest)
 
     def actionControlDevice(self, action, dev):
         """Provide normal Indigo On/Off actions for Broadlink RF Relay devices."""

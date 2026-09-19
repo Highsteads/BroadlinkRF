@@ -1,6 +1,6 @@
 # Broadlink RF for Indigo
 
-**Version:** 1.2.2
+**Version:** 1.3.0
 
 Local-LAN control of Broadlink RM4 Pro RF commands, with no cloud account and no
 bridge in the middle. Learn a code from a remote you already own, give it a name,
@@ -18,6 +18,11 @@ lets Indigo press those buttons.
 - **Broadlink RF Relay** device — a normal Indigo relay that maps one code to On and
   another to Off, so schedules, triggers, action groups and control pages treat it
   like any other switch.
+- **A watchdog on the hub** — an RM4 Pro says nothing when it drops off the network,
+  so the plugin checks it on a timer instead. It reports the hub missing once, marks
+  the device in error so it shows red, and says how long it was away when it returns.
+  Point it at the switch or smart plug the hub runs on and it will cut the power to
+  bring the hub back, which is the one thing known to work.
 - **Learning from the plugin menu** — pick the hub, name the code, then follow the
   press-and-hold prompts in the Event Log.
 - **Discovery from the plugin menu** — sweeps the local network and logs what it
@@ -65,6 +70,42 @@ A note on discovery: Broadlink hubs answer a UDP broadcast, and UDP broadcast on
 wifi is sent once, at the lowest rate, with nothing acknowledging it. A sweep that
 finds nothing has not proved the hub is absent. Run it again before you go looking
 for a fault.
+
+## Keeping the hub alive
+
+An RM4 Pro that loses its access point does not always find its way back. It gives no
+sign either — it simply stops answering, and the first you know is a command that never
+arrives. The hub device's **Watchdog** section deals with both halves of that.
+
+- **Check the hub every** — how often to ask it whether it is there. Five minutes suits
+  most houses. Set it to Never and the watchdog does nothing.
+- **Power-cycle using** — the switch or smart plug the RM4 Pro is plugged into. Leave it
+  on *None* and the watchdog will tell you the hub is missing but will not try to fix it.
+- **Cut power after** — how long the hub must be missing first. Ten minutes is enough to
+  rule out a reboot or a brief radio problem.
+- **Try at most** — after this many attempts the watchdog stops and leaves the hub alone,
+  so a unit that has genuinely died is not switched off and on all night.
+
+It allows fifteen minutes between attempts. One of these takes about ten minutes to
+rejoin a network after losing power, so cycling sooner would interrupt the recovery it
+is waiting for.
+
+## Version history
+
+- **v1.3.0** — the hub is watched on a timer and can be recovered by cutting its power.
+  Until now the plugin only ever spoke to the RM4 Pro when something asked it to
+  transmit, so a hub that had fallen off the network was invisible until a command
+  failed. Worse, the device looked healthy while it happened: Indigo refreshes a
+  device's communication time on any state write, and the plugin writes an error state
+  on every failed send, so the more consistently it failed the more recently it appeared
+  to have been in touch. The hub device now carries a Watchdog section — see above.
+- **v1.2.2** — the bundle carries the standard GitHub record. No behaviour change.
+- **v1.2.1** — removed an unused import. No behaviour change.
+- **v1.2.0** — ships a `requirements.txt`, so Indigo installs the `broadlink` package
+  itself rather than only working on a machine that already happened to have it.
+- **v1.1.0** — On/Off tiles work. Indigo passes a toggle straight through rather than
+  resolving it into on or off, and without that branch every dashboard and control-page
+  press was silently doing nothing.
 
 ## Acknowledgements
 

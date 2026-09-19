@@ -25,6 +25,60 @@
             <Field id="codeStorePath" type="textfield" defaultValue="/Library/Application Support/Perceptive Automation/Python Scripts/broadlink_codes.json">
                 <Label>RF code store:</Label>
             </Field>
+
+            <Field id="sep_watchdog" type="separator"/>
+            <Field id="watchdogHeading" type="label">
+                <Label>Watchdog</Label>
+            </Field>
+            <Field id="watchdogNote" type="label" fontSize="small">
+                <Label>An RM4 Pro says nothing when it falls off the network. It simply stops answering, and the first anyone knows is a command that does not arrive. The watchdog checks it on a timer instead, and can bring it back by cutting its power.</Label>
+            </Field>
+            <Field id="heartbeatMinutes" type="menu" defaultValue="5">
+                <Label>Check the hub every:</Label>
+                <List>
+                    <Option value="0">Never (watchdog off)</Option>
+                    <Option value="2">2 minutes</Option>
+                    <Option value="5">5 minutes</Option>
+                    <Option value="10">10 minutes</Option>
+                    <Option value="30">30 minutes</Option>
+                </List>
+            </Field>
+            <Field id="recoveryPlug" type="menu" defaultValue="0">
+                <Label>Power-cycle using:</Label>
+                <List class="self" method="switchable_devices" dynamicReload="true"/>
+            </Field>
+            <Field id="recoveryPlugNote" type="label" fontSize="small">
+                <Label>The switch or smart plug the RM4 Pro is plugged into. Leave this on “None” and the watchdog will report the hub missing but will not try to fix it.</Label>
+            </Field>
+            <Field id="recoveryAfterMinutes" type="menu" defaultValue="10" visibleBindingId="recoveryPlug" visibleBindingValue="!0">
+                <Label>Cut power after:</Label>
+                <List>
+                    <Option value="5">5 minutes missing</Option>
+                    <Option value="10">10 minutes missing</Option>
+                    <Option value="15">15 minutes missing</Option>
+                    <Option value="30">30 minutes missing</Option>
+                </List>
+            </Field>
+            <Field id="recoveryOffSeconds" type="menu" defaultValue="10" visibleBindingId="recoveryPlug" visibleBindingValue="!0">
+                <Label>Hold the power off for:</Label>
+                <List>
+                    <Option value="5">5 seconds</Option>
+                    <Option value="10">10 seconds</Option>
+                    <Option value="20">20 seconds</Option>
+                    <Option value="30">30 seconds</Option>
+                </List>
+            </Field>
+            <Field id="recoveryMaxAttempts" type="menu" defaultValue="2" visibleBindingId="recoveryPlug" visibleBindingValue="!0">
+                <Label>Try at most:</Label>
+                <List>
+                    <Option value="1">once</Option>
+                    <Option value="2">twice</Option>
+                    <Option value="3">three times</Option>
+                </List>
+            </Field>
+            <Field id="recoveryGiveUpNote" type="label" fontSize="small" visibleBindingId="recoveryPlug" visibleBindingValue="!0">
+                <Label>After the last attempt the watchdog stops cutting power and leaves the hub alone, so a dead unit cannot be cycled all night. It allows 15 minutes between attempts, because an RM4 Pro takes about ten minutes to rejoin a network after losing power.</Label>
+            </Field>
         </ConfigUI>
         <States>
             <State id="connectionState">
@@ -71,6 +125,26 @@
                 <ValueType>Integer</ValueType>
                 <TriggerLabel>Sent Count</TriggerLabel>
                 <ControlPageLabel>Sent Count</ControlPageLabel>
+            </State>
+            <State id="lastCheckedAt">
+                <ValueType>String</ValueType>
+                <TriggerLabel>Last Checked At</TriggerLabel>
+                <ControlPageLabel>Last Checked At</ControlPageLabel>
+            </State>
+            <State id="unreachableSince">
+                <ValueType>String</ValueType>
+                <TriggerLabel>Unreachable Since</TriggerLabel>
+                <ControlPageLabel>Unreachable Since</ControlPageLabel>
+            </State>
+            <State id="recoveryAttempts">
+                <ValueType>Integer</ValueType>
+                <TriggerLabel>Recovery Attempts</TriggerLabel>
+                <ControlPageLabel>Recovery Attempts</ControlPageLabel>
+            </State>
+            <State id="lastRecoveryAt">
+                <ValueType>String</ValueType>
+                <TriggerLabel>Last Recovery At</TriggerLabel>
+                <ControlPageLabel>Last Recovery At</ControlPageLabel>
             </State>
         </States>
         <UiDisplayStateId>connectionState</UiDisplayStateId>
