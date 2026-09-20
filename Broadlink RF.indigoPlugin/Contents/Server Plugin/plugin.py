@@ -1,7 +1,7 @@
 ####################
 # Broadlink RF for Indigo
 # Local-LAN RF control for Broadlink RM4 Pro devices.
-# Version: 1.3.0
+# Version: 1.3.1
 ####################
 #
 # v1.3.0 (19-09-2026): WATCHDOG. The hub is now checked on a timer, and can be
@@ -923,8 +923,13 @@ class Plugin(indigo.PluginBase):
         hub = self._device_from_id(value)
         if hub is not None and hub.deviceTypeId == "rm4Pro":
             return hub
+        # Count USABLE hubs, not every hub that exists. The watchdog already
+        # pairs the type with `enabled`; this fallback did not, so a disabled
+        # spare made the count two and the lone working hub was refused, while
+        # a single disabled hub was returned and the send then failed at the
+        # network layer instead of saying why (20-09-2026).
         hubs = [item for item in indigo.devices.iter("self")
-                if item.deviceTypeId == "rm4Pro"]
+                if item.deviceTypeId == "rm4Pro" and item.enabled]
         return hubs[0] if len(hubs) == 1 else None
 
     @staticmethod

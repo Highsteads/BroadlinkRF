@@ -1,6 +1,6 @@
 # Broadlink RF for Indigo
 
-**Version:** 1.3.0
+**Version:** 1.3.1
 
 Local-LAN control of Broadlink RM4 Pro RF commands, with no cloud account and no
 bridge in the middle. Learn a code from a remote you already own, give it a name,
@@ -92,6 +92,14 @@ is waiting for.
 
 ## Version history
 
+- **v1.3.1** — a command that names no hub now looks for a hub that is actually in
+  service. A device can either be told which hub to transmit through or leave it blank,
+  and a blank one falls back to "there is only one hub, so use that". That count
+  included hubs switched off in Indigo, so a spare sitting on a shelf made the count two
+  and every blank command was refused while a perfectly good hub sat there; and a single
+  hub taken out of service was handed back anyway, so the send failed as a network
+  timeout that explained nothing. The watchdog had always paired the two checks. This
+  one had not.
 - **v1.3.0** — the hub is watched on a timer and can be recovered by cutting its power.
   Until now the plugin only ever spoke to the RM4 Pro when something asked it to
   transmit, so a hub that had fallen off the network was invisible until a command
