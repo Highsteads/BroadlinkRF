@@ -1,7 +1,7 @@
 ####################
 # Broadlink RF for Indigo
 # Local-LAN RF control for Broadlink RM4 Pro devices.
-# Version: 1.3.1
+# Version: 1.3.2
 ####################
 #
 # v1.3.0 (19-09-2026): WATCHDOG. The hub is now checked on a timer, and can be
@@ -516,6 +516,12 @@ class Plugin(indigo.PluginBase):
     # ------------------------------------------------------------------
 
     def hub_devices(self, filter_str="", values_dict=None, type_id="", target_id=0):
+        # DELIBERATELY includes disabled hubs, unlike _watchdog_pass() and
+        # _hub_for_command(). This is the picker: a hub switched off for the
+        # afternoon must still be choosable, or configuring a device while its
+        # hub is out of service becomes impossible. A command bound to a
+        # disabled hub then fails at send time, which is the right place for it
+        # to fail -- the user disabled the hub on purpose.
         return [(str(dev.id), dev.name) for dev in indigo.devices.iter("self")
                 if dev.deviceTypeId == "rm4Pro"]
 
@@ -576,6 +582,9 @@ class Plugin(indigo.PluginBase):
             )
 
     def diagnose_hubs(self):
+        # Every hub, disabled ones included: a diagnostic that silently omitted
+        # a hub would answer the wrong question. Contrast _watchdog_pass() and
+        # _hub_for_command(), which ACT and so must skip what is out of service.
         for hub in (dev for dev in indigo.devices.iter("self")
                     if dev.deviceTypeId == "rm4Pro"):
             self._diagnose_hub(hub)
