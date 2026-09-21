@@ -1,8 +1,28 @@
 ####################
 # Broadlink RF for Indigo
 # Local-LAN RF control for Broadlink RM4 Pro devices.
-# Version: 1.3.2
+# Version: 1.4.0
 ####################
+#
+# v1.4.0 (21-09-2026): POWER-METER FEEDBACK. An RF relay can now be pointed at
+# a power meter on the appliance it switches -- a smart plug's watts, say -- and
+# its on/off state then follows the reading instead of the last code sent.
+#
+# RF has no return path. Until now "Fire On/Off" said only what had been
+# transmitted, so a press on the fire's own handset was invisible, and a code
+# the fire missed looked exactly like one it obeyed. The fire's plug reads
+# 0.5 W in standby and 36-38 W with the flame running, and on 21-09-2026 it
+# followed both RF commands within 30 seconds, so the reading is a better
+# answer to "is it on" than anything the plugin can remember.
+#
+# After a send the plugin waits for the meter to agree. If it has not within
+# the confirmation time (90 seconds by default, as a Shelly reports about every
+# 35), it says the appliance did not respond and shows what the meter reads.
+# A change nobody sent from Indigo is logged as one. An optional heavy-load
+# line sets a heavyLoad state -- above 500 W, the fire's heater is running.
+# With no reading (meter missing, disabled, in error or silent), the state falls
+# back to the last code sent, and measuredState says "unknown" so nothing
+# downstream mistakes a belief for a measurement.
 #
 # v1.3.0 (19-09-2026): WATCHDOG. The hub is now checked on a timer, and can be
 # brought back by cutting its power.
@@ -58,7 +78,7 @@ import ipaddress
 import json
 import os
 import threading
-from datetime import datetime
+from datetime import datetime, timedelta
 
 
 DEFAULT_CODE_STORE = "/Library/Application Support/Perceptive Automation/Python Scripts/broadlink_codes.json"
@@ -77,6 +97,14 @@ class Plugin(indigo.PluginBase):
         self._stopping = False
         self._broadlink = None
         self._last_probe = {}
+        # Power-meter feedback. _meter_map maps a meter's device id to the RF
+        # relays that read it; _pending holds a sent command still waiting for
+        # the meter to agree. Both are touched from Indigo's callback thread and
+        # from runConcurrentThread, hence the lock.
+        self._feedback_lock = threading.RLock()
+        self._meter_map = {}
+        self._pending = {}
+        self._subscribed = False
 
     # ------------------------------------------------------------------
     # Indigo lifecycle and configuration
@@ -143,6 +171,7 @@ class Plugin(indigo.PluginBase):
             else:
                 self._validate_code_name(values_dict.get("onCodeName", ""), "onCodeName", path, errors)
                 self._validate_code_name(values_dict.get("offCodeName", ""), "offCodeName", path, errors)
+                self._validate_feedback(values_dict, errors)
 
         if errors:
             errors["showAlertText"] = "Please correct the highlighted Broadlink RF settings."
@@ -204,16 +233,35 @@ class Plugin(indigo.PluginBase):
                 lastResult="Ready",
             )
         elif dev.deviceTypeId == "rfRelay":
+            dev = self._adopt_new_states(dev, self.FEEDBACK_STATES)
             self._update_states(dev, lastResult="Ready")
+            self._register_feedback(dev)
+            if self._feedback_config(dev) is None:
+                self._update_states(dev, measuredState="unknown", feedbackStatus="Not configured",
+                                    heavyLoad=False)
+            else:
+                self._apply_reading(dev, startup=True)
 
     def deviceStopComm(self, dev):
         if dev.deviceTypeId == "rm4Pro":
             self._update_states(dev, connectionState="Stopped")
         elif dev.deviceTypeId in ("rfCommand", "rfRelay"):
             self._update_states(dev, lastResult="Stopped")
+            if dev.deviceTypeId == "rfRelay":
+                self._unregister_feedback(dev.id)
 
     def deviceUpdated(self, orig_dev, new_dev):
         super().deviceUpdated(orig_dev, new_dev)
+        # Our own writes must never feed back into this, or a relay update
+        # would re-enter the handler that made it.
+        if new_dev.pluginId == self.pluginId:
+            return
+        with self._feedback_lock:
+            relay_ids = list(self._meter_map.get(new_dev.id, ()))
+        for relay_id in relay_ids:
+            relay = self._device_from_id(relay_id)
+            if relay is not None and relay.enabled:
+                self._apply_reading(relay)
 
     # ------------------------------------------------------------------
     # Hub watchdog
@@ -252,6 +300,12 @@ class Plugin(indigo.PluginBase):
                     self._watchdog_pass()
                 except Exception:
                     self.logger.exception("Broadlink RF watchdog pass failed")
+                # Separately guarded: a hub fault must not stop a confirmation
+                # timing out, and the other way round.
+                try:
+                    self._feedback_pass()
+                except Exception:
+                    self.logger.exception("Broadlink RF feedback pass failed")
                 # StopThread is raised out of self.sleep() and nowhere else, so
                 # every wait in this loop has to go through it.
                 self.sleep(self.WATCHDOG_TICK_SECONDS)
@@ -478,10 +532,12 @@ class Plugin(indigo.PluginBase):
             code_name = str(dev.pluginProps.get("onCodeName", ""))
             if self._send_from_device(dev, code_name):
                 dev.updateStateOnServer("onOffState", True)
+                self._expect(dev, True)
         elif action.deviceAction == indigo.kDeviceAction.TurnOff:
             code_name = str(dev.pluginProps.get("offCodeName", ""))
             if self._send_from_device(dev, code_name):
                 dev.updateStateOnServer("onOffState", False)
+                self._expect(dev, False)
         elif action.deviceAction == indigo.kDeviceAction.Toggle:
             # Indigo does NOT resolve a toggle into TurnOn/TurnOff — it passes
             # kDeviceAction.Toggle straight through, and a plugin that does not
@@ -490,19 +546,27 @@ class Plugin(indigo.PluginBase):
             # and control-page tile on this device was doing, because those send
             # a toggle rather than an explicit on/off.
             #
-            # THE STATE WE FLIP FROM IS A BELIEF, NOT A READING. This relay is
-            # one-way, so onOffState is only what was last transmitted. If the
-            # fire was lit by its own handset the belief says off, and a toggle
-            # will therefore send ON. That is inherent to a device with no
-            # return path — use the explicit Turn On / Turn Off actions when you
-            # need to ASSERT a state rather than flip one.
+            # WHAT WE FLIP FROM DEPENDS ON THE POWER METER. With one configured,
+            # onOffState follows the reading, so a fire lit from its own handset
+            # reads on and a toggle turns it off. Without one, onOffState is only
+            # what was last transmitted -- a belief, not a reading -- and a
+            # toggle after a handset press goes the wrong way. Use the explicit
+            # Turn On / Turn Off actions when you need to ASSERT a state.
             turning_on = not dev.onState
             code_name  = str(dev.pluginProps.get(
                 "onCodeName" if turning_on else "offCodeName", ""))
             if self._send_from_device(dev, code_name):
                 dev.updateStateOnServer("onOffState", turning_on)
+                self._expect(dev, turning_on)
         elif action.deviceAction == indigo.kUniversalAction.RequestStatus:
-            self._update_states(dev, lastResult="RF devices do not report state; last command retained")
+            if self._feedback_config(dev) is None:
+                self._update_states(dev, lastResult="RF devices do not report state; last command retained")
+            else:
+                self._apply_reading(dev)
+                dev = self._refetch(dev) or dev
+                self.logger.info("'%s': %s (%s).", dev.name,
+                                 dev.states.get("feedbackStatus", ""),
+                                 self._fmt_watts(dev.states.get("measuredWatts")))
         else:
             # Anything else is a command this device cannot honour. Say so:
             # without this, "called and did nothing" and "never called at all"
@@ -510,6 +574,289 @@ class Plugin(indigo.PluginBase):
             self.logger.warning(
                 f'"{dev.name}" received {action.deviceAction!r}, which an RF relay '
                 f'cannot perform — ignored')
+
+
+    # ------------------------------------------------------------------
+    # Power-meter feedback for RF relays
+    # ------------------------------------------------------------------
+    #
+    # RF is one-way, so an RF relay's onOffState has only ever been the last
+    # code sent. A power meter on the appliance -- a smart plug's watts -- turns
+    # that into a reading: above the "on" line it is on, below it is off.
+    #
+    # After a send, readings that still disagree are ignored until the
+    # confirmation time runs out, because the meter reports on its own schedule
+    # and the first reading after a send often predates the appliance acting on
+    # it. When time runs out the reading wins and the plugin says the appliance
+    # did not respond.
+    #
+    # With no usable reading the relay falls back to open loop and says so in
+    # measuredState ("unknown"), so nothing downstream mistakes the last code
+    # sent for a measurement.
+
+    FEEDBACK_STATES = ("measuredWatts", "measuredState", "feedbackStatus", "heavyLoad")
+    FEEDBACK_DEFAULT_ON_WATTS = 10.0
+    FEEDBACK_DEFAULT_TIMEOUT = 90       # a Shelly plug reports roughly every 35 s
+    FEEDBACK_STALE_MINUTES = 15         # no comm from the meter for this long = no reading
+    POWER_STATE_PREFERENCE = ("powerWatts", "curEnergyLevel", "power", "watts")
+
+    def _feedback_config(self, dev):
+        """The relay's meter settings, or None when it has no meter."""
+        props = dev.pluginProps
+        meter_id = self._as_int(props.get("feedbackDevice", 0), 0)
+        if meter_id <= 0:
+            return None
+        on_watts = self._as_float(props.get("feedbackOnWatts", ""), self.FEEDBACK_DEFAULT_ON_WATTS)
+        if on_watts <= 0:
+            on_watts = self.FEEDBACK_DEFAULT_ON_WATTS
+        timeout = self._as_int(props.get("feedbackTimeoutSeconds", ""), self.FEEDBACK_DEFAULT_TIMEOUT)
+        return {
+            "meter_id": meter_id,
+            "state": str(props.get("feedbackStateName", "") or "").strip(),
+            "on_watts": on_watts,
+            "timeout": max(20, min(timeout, 600)),
+            "heavy": max(0.0, self._as_float(props.get("feedbackHeavyWatts", ""), 0.0)),
+        }
+
+    def _register_feedback(self, dev):
+        cfg = self._feedback_config(dev)
+        with self._feedback_lock:
+            for relays in self._meter_map.values():
+                relays.discard(dev.id)
+            if cfg is not None:
+                self._meter_map.setdefault(cfg["meter_id"], set()).add(dev.id)
+        if cfg is not None and not self._subscribed:
+            # Only a plugin with a meter to watch pays for every device change
+            # in the house being sent to it.
+            try:
+                indigo.devices.subscribeToChanges()
+                self._subscribed = True
+            except Exception as exc:
+                self.logger.error("Could not watch device changes; power readings will "
+                                  "only be checked every %d seconds: %s",
+                                  self.WATCHDOG_TICK_SECONDS, exc)
+
+    def _unregister_feedback(self, relay_id):
+        with self._feedback_lock:
+            for relays in self._meter_map.values():
+                relays.discard(relay_id)
+            self._pending.pop(relay_id, None)
+
+    def _expect(self, dev, expected_on):
+        """Record a sent command, so the meter's answer can confirm or refute it."""
+        cfg = self._feedback_config(dev)
+        if cfg is None:
+            return
+        with self._feedback_lock:
+            self._pending[dev.id] = {
+                "on": bool(expected_on),
+                "sent": self._monotonic(),
+                "deadline": self._monotonic() + cfg["timeout"],
+            }
+        self._apply_reading(self._refetch(dev) or dev)
+
+    def _feedback_pass(self):
+        """Time out unanswered commands, and notice a meter that has gone quiet."""
+        for dev in indigo.devices.iter("self"):
+            if dev.deviceTypeId == "rfRelay" and dev.enabled and self._feedback_config(dev):
+                self._apply_reading(dev)
+
+    def _power_state_key(self, meter, wanted=""):
+        if wanted:
+            return wanted
+        for key in self.POWER_STATE_PREFERENCE:
+            if key in meter.states:
+                return key
+        return ""
+
+    def _read_meter(self, cfg):
+        """(watts, meter, None) for a usable reading, else (None, meter, why)."""
+        meter = self._device_from_id(cfg["meter_id"])
+        if meter is None:
+            return None, None, "the power meter no longer exists"
+        if not getattr(meter, "enabled", True):
+            return None, meter, f"'{meter.name}' is disabled"
+        if str(getattr(meter, "errorState", "") or "").strip():
+            return None, meter, f"'{meter.name}' is in error"
+        key = self._power_state_key(meter, cfg["state"])
+        value = meter.states.get(key) if key else None
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            value = self._as_float(value, None) if isinstance(value, str) else None
+        if value is None:
+            return None, meter, f"'{meter.name}' has no numeric {key or 'power'} reading"
+        last_comm = getattr(meter, "lastSuccessfulComm", None)
+        if isinstance(last_comm, datetime):
+            silent = (datetime.now() - last_comm).total_seconds() / 60.0
+            if silent > self.FEEDBACK_STALE_MINUTES:
+                return None, meter, (f"'{meter.name}' has not reported for "
+                                     f"{self._describe_minutes(silent)}")
+        return float(value), meter, None
+
+    def _apply_reading(self, relay, startup=False):
+        """Bring one relay's state into line with its meter. Writes only what changed."""
+        cfg = self._feedback_config(relay)
+        if cfg is None:
+            return
+        watts, meter, why = self._read_meter(cfg)
+        previous = str(relay.states.get("measuredState", "") or "")
+        with self._feedback_lock:
+            pending = self._pending.get(relay.id)
+
+        if watts is None:
+            updates = {"measuredState": "unknown", "feedbackStatus": "No reading"}
+            if previous in ("on", "off"):
+                # Once per loss: measuredState is the latch, and it is a device
+                # state, so a restart does not make the plugin say it again.
+                self.logger.warning(
+                    "'%s' can no longer read its power meter: %s. Until it can, its state "
+                    "is only the last code sent.", relay.name, why)
+            if pending and self._monotonic() >= pending["deadline"]:
+                with self._feedback_lock:
+                    self._pending.pop(relay.id, None)
+            self._write_changed(relay, updates)
+            return
+
+        is_on = watts >= cfg["on_watts"]
+        heavy = cfg["heavy"] > 0 and watts >= cfg["heavy"]
+        word = "on" if is_on else "off"
+        updates = {
+            "measuredWatts": round(watts, 1),
+            "measuredState": word,
+            "heavyLoad": heavy,
+        }
+        reading = f"'{meter.name}' reads {self._fmt_watts(watts)}"
+
+        if previous == "unknown" and not startup:
+            self.logger.info("'%s' can read its power meter again: %s.", relay.name, reading)
+
+        if pending is not None:
+            wanted = "on" if pending["on"] else "off"
+            if is_on == pending["on"]:
+                with self._feedback_lock:
+                    self._pending.pop(relay.id, None)
+                updates["feedbackStatus"] = f"{word.capitalize()} (measured)"
+                updates["onOffState"] = is_on
+                self.logger.debug("'%s' confirmed %s after %d seconds: %s.", relay.name, word,
+                                  int(self._monotonic() - pending["sent"]), reading)
+            elif self._monotonic() >= pending["deadline"]:
+                with self._feedback_lock:
+                    self._pending.pop(relay.id, None)
+                updates["feedbackStatus"] = f"Did not turn {wanted}"
+                updates["onOffState"] = is_on
+                self.logger.warning(
+                    "'%s' was sent %s %d seconds ago but %s, so it has not responded. "
+                    "It is shown as %s.", relay.name, wanted.upper(),
+                    int(self._monotonic() - pending["sent"]), reading, word)
+            else:
+                updates["feedbackStatus"] = f"Waiting for {wanted}"
+        else:
+            if str(relay.states.get("feedbackStatus", "")).startswith("Did not turn") \
+                    and bool(relay.onState) == is_on:
+                pass                  # keep the failure visible until the reading changes
+            else:
+                updates["feedbackStatus"] = f"{word.capitalize()} (measured)"
+            if bool(relay.onState) != is_on:
+                updates["onOffState"] = is_on
+                updates["feedbackStatus"] = f"{word.capitalize()} (measured)"
+                if startup:
+                    self.logger.info("'%s' is %s: %s.", relay.name, word, reading)
+                else:
+                    self.logger.info("'%s' is now %s: %s. It was switched by something "
+                                     "other than this plugin.", relay.name, word, reading)
+
+        if cfg["heavy"] > 0 and bool(relay.states.get("heavyLoad", False)) != heavy \
+                and "heavyLoad" in relay.states and not startup:
+            if heavy:
+                self.logger.info("'%s' is drawing %s, above its %s heavy-load line.",
+                                 relay.name, self._fmt_watts(watts), self._fmt_watts(cfg["heavy"]))
+            else:
+                self.logger.info("'%s' has dropped to %s, below its %s heavy-load line.",
+                                 relay.name, self._fmt_watts(watts), self._fmt_watts(cfg["heavy"]))
+        self._write_changed(relay, updates)
+
+    def _write_changed(self, dev, updates):
+        """Write only the states whose value differs, so a meter reporting every
+        few seconds does not rewrite the relay every few seconds."""
+        changed = {k: v for k, v in updates.items() if dev.states.get(k) != v}
+        if "onOffState" in changed:
+            try:
+                dev.updateStateOnServer("onOffState", changed.pop("onOffState"))
+            except Exception as exc:
+                self.logger.debug("Could not update '%s' onOffState: %s", dev.name, exc)
+        if changed:
+            self._update_states(dev, **changed)
+
+    @staticmethod
+    def _fmt_watts(value):
+        try:
+            watts = float(value)
+        except (TypeError, ValueError):
+            return "no reading"
+        if abs(watts) < 10:
+            return "%.1f W" % watts
+        return "{:,} W".format(int(round(watts)))
+
+    @classmethod
+    def _describe_minutes(cls, minutes):
+        return cls._describe_gap("2000-01-01 00:00:00",
+                                 datetime(2000, 1, 1) + timedelta(minutes=minutes))
+
+    def _validate_feedback(self, values_dict, errors):
+        meter_id = self._as_int(values_dict.get("feedbackDevice", 0), 0)
+        if meter_id <= 0:
+            return
+        meter = self._device_from_id(meter_id)
+        if meter is None:
+            errors["feedbackDevice"] = "That device no longer exists."
+            return
+        key = str(values_dict.get("feedbackStateName", "") or "").strip()
+        if not key:
+            key = self._power_state_key(meter)
+            values_dict["feedbackStateName"] = key
+        value = meter.states.get(key) if key else None
+        if not key or isinstance(value, bool) or self._as_float(value, None) is None:
+            errors["feedbackStateName"] = "Choose a reading in watts from this device."
+        on_watts = self._as_float(values_dict.get("feedbackOnWatts", ""), None)
+        if on_watts is None or on_watts <= 0:
+            errors["feedbackOnWatts"] = "Enter the number of watts above which it counts as on."
+        timeout = self._as_int(values_dict.get("feedbackTimeoutSeconds", ""), None)
+        if timeout is None or not 20 <= timeout <= 600:
+            errors["feedbackTimeoutSeconds"] = "Enter a number of seconds from 20 to 600."
+        heavy_text = str(values_dict.get("feedbackHeavyWatts", "") or "").strip()
+        if heavy_text:
+            heavy = self._as_float(heavy_text, None)
+            if heavy is None or (on_watts is not None and heavy <= on_watts):
+                errors["feedbackHeavyWatts"] = "Leave blank, or enter more watts than the on line."
+
+    def meter_devices(self, filter_str="", values_dict=None, type_id="", target_id=0):
+        """Devices carrying a power reading, for the relay's config dialog."""
+        options = [("0", "None -- state is the last code sent")]
+        for dev in indigo.devices.iter():
+            if dev.pluginId == self.pluginId:
+                continue
+            if self._power_state_key(dev):
+                options.append((str(dev.id), dev.name))
+        return options
+
+    def meter_states(self, filter_str="", values_dict=None, type_id="", target_id=0):
+        """Numeric states of the chosen meter, power readings first."""
+        values_dict = values_dict or {}
+        meter = self._device_from_id(values_dict.get("feedbackDevice", 0))
+        if meter is None:
+            # Not ("", ...): Indigo refuses an empty option id and logs
+            # "UI dynamic list function returned illegal ID string".
+            return []
+        keys = [k for k, v in meter.states.items()
+                if not k.endswith(".ui") and not isinstance(v, bool) and isinstance(v, (int, float))]
+        keys.sort(key=lambda k: (k not in self.POWER_STATE_PREFERENCE, k.lower()))
+        return [(k, "%s (now %s)" % (k, meter.states.get(k))) for k in keys]
+
+    def feedback_device_changed(self, values_dict, type_id="", dev_id=0):
+        """Pick the likely reading as soon as a meter is chosen."""
+        meter = self._device_from_id(values_dict.get("feedbackDevice", 0))
+        if meter is not None:
+            values_dict["feedbackStateName"] = self._power_state_key(meter)
+        return values_dict
 
     # ------------------------------------------------------------------
     # Dynamic lists and menu dialogs

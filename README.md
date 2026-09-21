@@ -1,6 +1,6 @@
 # Broadlink RF for Indigo
 
-**Version:** 1.3.2
+**Version:** 1.4.0
 
 Local-LAN control of Broadlink RM4 Pro RF commands, with no cloud account and no
 bridge in the middle. Learn a code from a remote you already own, give it a name,
@@ -17,7 +17,8 @@ lets Indigo press those buttons.
 - **Broadlink RF Command** device — one stored code by name, sent on demand.
 - **Broadlink RF Relay** device — a normal Indigo relay that maps one code to On and
   another to Off, so schedules, triggers, action groups and control pages treat it
-  like any other switch.
+  like any other switch. Give it a power meter and its state follows what the
+  appliance is really doing, not just what was last sent.
 - **A watchdog on the hub** — an RM4 Pro says nothing when it drops off the network,
   so the plugin checks it on a timer instead. It reports the hub missing once, marks
   the device in error so it shows red, and says how long it was away when it returns.
@@ -36,10 +37,10 @@ The RM4 Pro is a remote, not a spectrum analyser. It learns and replays fixed-co
 RF remotes. Rolling-code and encrypted devices are beyond it, and no amount of
 software will change that.
 
-**RF is open loop.** Nothing comes back from the far end, so the device state in
-Indigo is a record of what was sent, not a reading of what happened. If somebody
-uses the original handset, Indigo will not know. Bear that in mind when you write
-an automation that cares.
+**RF is open loop.** Nothing comes back from the far end, so on its own the device
+state in Indigo is a record of what was sent, not a reading of what happened. If
+somebody uses the original handset, Indigo will not know. A power meter on the
+appliance fixes that for a Relay device, as the next section explains.
 
 ## Requirements
 
@@ -71,6 +72,37 @@ wifi is sent once, at the lowest rate, with nothing acknowledging it. A sweep th
 finds nothing has not proved the hub is absent. Run it again before you go looking
 for a fault.
 
+## Knowing whether it really is on
+
+If the appliance runs from a smart plug or anything else that reports watts, point
+the Relay device at it in the **Power meter** section of its dialog. The device's
+on/off state then follows the reading.
+
+- **Power meter** and **Reading** — the device and the state that holds its watts.
+  The plugin picks the likely reading for you.
+- **On above** — the number of watts that counts as on. Set it well clear of the
+  standby draw. An electric fire here reads half a watt in standby and 37 watts with
+  the flame effect running, so 10 watts leaves plenty of room either side.
+- **Confirm within** — how long to wait after a send for the reading to agree. A
+  Shelly plug reports about every 35 seconds, so the default of 90 seconds allows for
+  two reports.
+- **Heavy load above** — optional. Sets a *Heavy Load* state when the reading
+  passes it, such as 500 watts to show when a fire's heater is running.
+
+What you get:
+
+- A press on the appliance's own remote shows up in Indigo within one report, and the
+  log says it came from outside the plugin.
+- A code the appliance ignored is reported as ignored, with the reading, instead of
+  showing as a success.
+- A toggle from a control page goes the right way even after somebody used the handset.
+- Four new states for triggers and control pages: *Measured Watts*, *Measured State*
+  (`on`, `off` or `unknown`), *Feedback Status* and *Heavy Load*.
+
+If the meter is removed, switched off in Indigo, in error or silent for 15 minutes,
+the plugin warns once, sets *Measured State* to `unknown` and goes back to showing the
+last code sent until the reading returns.
+
 ## Keeping the hub alive
 
 An RM4 Pro that loses its access point does not always find its way back. It gives no
@@ -92,6 +124,11 @@ is waiting for.
 
 ## Version history
 
+- **v1.4.0** — a Relay device can read a power meter on the appliance it switches,
+  and its state then follows the meter instead of the last code sent. Presses on the
+  appliance's own remote now show up in Indigo, a code the appliance ignored is
+  reported instead of looking like a success, and an optional heavy-load line shows
+  when something like a fire's heater is running. See *Knowing whether it really is on*.
 - **v1.3.2** — comments only, no change to what the plugin does. The hub picker and the
   hub diagnostic deliberately list hubs that are switched off in Indigo, while the
   watchdog and the send path deliberately skip them, and nothing said so. A sweep for

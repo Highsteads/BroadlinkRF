@@ -237,6 +237,31 @@
                     <Option value="5">5</Option>
                 </List>
             </Field>
+            <Field id="sepFeedback" type="separator"/>
+            <Field id="feedbackHelp" type="label" fontSize="small">
+                <Label>Optional. RF has no return path, so without a power meter this device's state is only the last code sent. Choose the smart plug or meter the appliance runs on and the state follows its reading instead, including presses on the appliance's own remote.</Label>
+            </Field>
+            <Field id="feedbackDevice" type="menu" defaultValue="0">
+                <Label>Power meter:</Label>
+                <List class="self" method="meter_devices" dynamicReload="true"/>
+                <CallbackMethod>feedback_device_changed</CallbackMethod>
+            </Field>
+            <Field id="feedbackStateName" type="menu" defaultValue="">
+                <Label>Reading:</Label>
+                <List class="self" method="meter_states" dynamicReload="true"/>
+            </Field>
+            <Field id="feedbackOnWatts" type="textfield" defaultValue="10">
+                <Label>On above (watts):</Label>
+            </Field>
+            <Field id="feedbackTimeoutSeconds" type="textfield" defaultValue="90">
+                <Label>Confirm within (seconds):</Label>
+            </Field>
+            <Field id="feedbackHeavyWatts" type="textfield" defaultValue="">
+                <Label>Heavy load above (watts):</Label>
+            </Field>
+            <Field id="feedbackHeavyHelp" type="label" fontSize="small" alignWithControl="true">
+                <Label>Optional. Sets the Heavy Load state, e.g. 500 to see when a fire's heater is running.</Label>
+            </Field>
         </ConfigUI>
         <States>
             <State id="lastCommand">
@@ -263,6 +288,26 @@
                 <ValueType>Integer</ValueType>
                 <TriggerLabel>Sent Count</TriggerLabel>
                 <ControlPageLabel>Sent Count</ControlPageLabel>
+            </State>
+            <State id="measuredWatts">
+                <ValueType>Number</ValueType>
+                <TriggerLabel>Measured Watts</TriggerLabel>
+                <ControlPageLabel>Measured Watts</ControlPageLabel>
+            </State>
+            <State id="measuredState">
+                <ValueType>String</ValueType>
+                <TriggerLabel>Measured State (on, off or unknown)</TriggerLabel>
+                <ControlPageLabel>Measured State</ControlPageLabel>
+            </State>
+            <State id="feedbackStatus">
+                <ValueType>String</ValueType>
+                <TriggerLabel>Feedback Status</TriggerLabel>
+                <ControlPageLabel>Feedback Status</ControlPageLabel>
+            </State>
+            <State id="heavyLoad">
+                <ValueType>Boolean</ValueType>
+                <TriggerLabel>Heavy Load</TriggerLabel>
+                <ControlPageLabel>Heavy Load</ControlPageLabel>
             </State>
         </States>
         <UiDisplayStateId>onOffState</UiDisplayStateId>

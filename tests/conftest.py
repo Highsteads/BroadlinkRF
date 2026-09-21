@@ -34,7 +34,15 @@ class FakeDevice:
         self.enabled = enabled
         self.pluginId = plugin_id
         self.errorState = ""
+        self.lastSuccessfulComm = None
         self.state_writes = []
+
+    @property
+    def onState(self):
+        return bool(self.states.get("onOffState", False))
+
+    def stateListOrDisplayStateIdChanged(self):
+        pass
 
     def updateStatesOnServer(self, rows):
         for row in rows:
@@ -53,6 +61,10 @@ class FakeDevices:
 
     def __init__(self):
         self._by_id = {}
+        self.subscribed = 0
+
+    def subscribeToChanges(self):
+        self.subscribed += 1
 
     def add(self, dev):
         self._by_id[dev.id] = dev
