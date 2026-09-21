@@ -15,7 +15,7 @@ STAMP = "%Y-%m-%d %H:%M:%S"
 
 
 def _hub(make_device, **props):
-    base = {"host": "192.168.4.56", "port": "80", "heartbeatMinutes": "5"}
+    base = {"host": "192.168.1.200", "port": "80", "heartbeatMinutes": "5"}
     base.update(props)
     return make_device(20637040, "Broadlink RM4 Pro", "rm4Pro", props=base)
 
