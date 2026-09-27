@@ -15,7 +15,7 @@ The hub did not answer the watchdog's last check, and the Event Log has an error
 - If your router may have given it a new address, run **Plugins → Broadlink RF → Discover Broadlink Devices**, and put the address it finds into the hub device's **RM4 Pro IP address**.
 - If the hub stays away after your Wi-Fi has had a problem, unplug it for ten seconds and plug it back in. It takes about ten minutes to rejoin the network. To have the plugin do this for you, choose the plug it runs from in **Power-cycle using** in the hub's settings.
 
-When it answers again, the red clears by itself and the log says how long it was away.
+The red stays until the hub answers a check. When it does, the red clears by itself and the log says how long it was away.
 
 ## The log says the hub has been power-cycled and is being left alone
 

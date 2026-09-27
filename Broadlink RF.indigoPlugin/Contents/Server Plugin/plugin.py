@@ -1,8 +1,15 @@
 ####################
 # Broadlink RF for Indigo
 # Local-LAN RF control for Broadlink RM4 Pro devices.
-# Version: 1.5.0
+# Version: 1.6.0
 ####################
+#
+# v1.6.0 (27-09-2026, CliveS & Claude Opus 5.5): the watchdog's "unreachable"
+# error now stands until the hub answers. Every state write cleared it by
+# default, so the next pass (lastCheckedAt) or a failed send wiped it within
+# minutes. _update_states passes clearErrorState=False; the error clears only
+# on recovery, or when the watchdog is switched off. A Command device is no
+# longer written lastCommand, which it does not declare.
 #
 # v1.5.0 (27-09-2026, CliveS & Claude Opus 5.5): three faults found while
 # writing the guide. A blank Default RF frequency is accepted and means "scan",
@@ -105,6 +112,9 @@ class Plugin(indigo.PluginBase):
         self._stopping = False
         self._broadlink = None
         self._last_probe = {}
+        # Whether Indigo accepts clearErrorState on a BATCH state write. None
+        # until the first write finds out; see _update_states.
+        self._batch_keeps_error = None
         # Power-meter feedback. _meter_map maps a meter's device id to the RF
         # relays that read it; _pending holds a sent command still waiting for
         # the meter to agree. Both are touched from Indigo's callback thread and
@@ -337,6 +347,10 @@ class Plugin(indigo.PluginBase):
                 continue
             interval = self._as_int(dev.pluginProps.get("heartbeatMinutes", 5), 5)
             if interval <= 0:
+                # Nothing is watching this hub, so nothing will ever see it come
+                # back. Let go of an outage it was carrying rather than leave
+                # the error standing for good.
+                self._release_latch(dev)
                 continue
             last = self._last_probe.get(dev.id, 0.0)
             if last and (now - last) < interval * 60:
@@ -376,6 +390,8 @@ class Plugin(indigo.PluginBase):
         since = str(dev.states.get("unreachableSince") or "").strip()
         if not since:
             self._update_states(dev, connectionState="Connected", lastCheckedAt=checked)
+            if str(getattr(dev, "errorState", "") or "").strip():
+                self._set_error_state(dev, "")        # it answers, so no fault stands
             return
         # It was missing and has come back. Say so with the outage length --
         # that is the number worth having, and nothing else records it.
@@ -471,6 +487,17 @@ class Plugin(indigo.PluginBase):
                 "'%s' has now been power-cycled %d time(s) without coming back. "
                 "Leaving it alone -- it needs looking at.",
                 dev.name, attempts)
+
+    def _release_latch(self, dev):
+        """The watchdog was turned off during an outage: stop claiming one."""
+        dev = self._refetch(dev) or dev
+        if not str(dev.states.get("unreachableSince") or "").strip():
+            return
+        self._update_states(dev, connectionState="Configured", unreachableSince="",
+                            recoveryAttempts=0)
+        self._set_error_state(dev, "")
+        self.logger.info("'%s' is no longer checked, so it is no longer shown as unreachable.",
+                         dev.name)
 
     def switchable_devices(self, filter_str="", values_dict=None, type_id="", target_id=0):
         """Relay devices the watchdog could cut power with, for the hub's config dialog."""
@@ -1064,14 +1091,18 @@ class Plugin(indigo.PluginBase):
                 codeCount=len(codes),
             )
             if target_dev is not None and target_dev.id != hub.id:
-                self._update_states(
-                    target_dev,
-                    lastResult="Sent",
-                    lastError="",
-                    lastCommand=code_name,
-                    lastSentAt=timestamp,
-                    sentCount=self._state_int(target_dev, "sentCount") + 1,
-                )
+                updates = {
+                    "lastResult": "Sent",
+                    "lastError": "",
+                    "lastSentAt": timestamp,
+                    "sentCount": self._state_int(target_dev, "sentCount") + 1,
+                }
+                # Only a relay declares lastCommand. A Command device always
+                # sends its own code, which selectedCode already names, and
+                # Indigo refuses a write to a state the device does not have.
+                if target_dev.deviceTypeId == "rfRelay":
+                    updates["lastCommand"] = code_name
+                self._update_states(target_dev, **updates)
             self.logger.info("Sent Broadlink RF code '%s' at %s MHz (%d repeat(s))",
                              code_name, entry.get("frequency", "unknown"), count)
             return True
@@ -1339,10 +1370,37 @@ class Plugin(indigo.PluginBase):
         return str(entry.get("packet") or entry.get("hex") or "").strip()
 
     def _update_states(self, dev, **values):
+        """Write states WITHOUT touching the device's error state.
+
+        Indigo's state writes clear a device's error by default. The only error
+        this plugin sets is the watchdog's "unreachable" on a hub, and the very
+        next pass wrote lastCheckedAt and wiped it -- as did every failed send
+        -- so a health monitor reading errorState rarely saw a missing hub. The
+        error is now cleared only where the plugin decides the outage is over,
+        with an explicit _set_error_state(dev, "").
+
+        The documented form of clearErrorState is on the single-state write.
+        The batch call is tried with it first (one batch is one SQL Logger row);
+        if Indigo refuses the argument, the states go one at a time, and that
+        choice is remembered.
+        """
         if dev is None:
             return
+        rows = [{"key": key, "value": value} for key, value in values.items()]
         try:
-            dev.updateStatesOnServer([{"key": key, "value": value} for key, value in values.items()])
+            if self._batch_keeps_error is not False:
+                try:
+                    dev.updateStatesOnServer(rows, clearErrorState=False)
+                    self._batch_keeps_error = True
+                    return
+                except TypeError:
+                    if self._batch_keeps_error is True:
+                        raise   # it has worked before, so this is a real fault
+                    self._batch_keeps_error = False
+                    self.logger.debug("Indigo does not accept clearErrorState on a batch "
+                                      "write; writing states one at a time instead")
+            for row in rows:
+                dev.updateStateOnServer(row["key"], row["value"], clearErrorState=False)
         except Exception as exc:
             self.logger.debug("Could not update '%s' states: %s", dev.name, exc)
 

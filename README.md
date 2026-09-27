@@ -2,7 +2,7 @@
 
 **Press the buttons on your appliances' radio remotes from Indigo, through a Broadlink RM4 Pro on your home network.**
 
-**Version:** 1.5.0 | **Author:** CliveS & Claude | **Needs:** Indigo 2025.1 or later and a Broadlink RM4 Pro
+**Version:** 1.6.0 | **Author:** CliveS & Claude | **Needs:** Indigo 2025.1 or later and a Broadlink RM4 Pro
 
 **[Read the full guide](https://highsteads.github.io/BroadlinkRF/)** — setting up, what everything means, and what to do when something goes wrong.
 
@@ -48,6 +48,11 @@ The [full guide](https://highsteads.github.io/BroadlinkRF/) goes through each st
 
 ## What's new
 
+**v1.6.0** — An unreachable hub stays red until it answers again.
+- The next check, or a failed button press, no longer clears the red while the hub is still missing.
+- Choosing **Never** for the hub check clears the red, since nothing is checking any more.
+- A button sent from a Command device no longer logs an error about a state it does not have.
+
 **v1.5.0** — Fixes found while writing the guide.
 - **Default RF frequency** can be left blank, and then the hub finds the frequency, as the learn dialogs say.
 - **Reload RF Code Store** on a Command or Relay device reads that device's hub's file.
@@ -58,8 +63,6 @@ The [full guide](https://highsteads.github.io/BroadlinkRF/) goes through each st
 - A press the appliance ignored is reported as ignored, with the reading.
 - **Toggle** goes the right way even after someone used the handset.
 - New **Measured Watts**, **Measured State**, **Feedback Status** and **Heavy Load** states for triggers and control pages.
-
-**v1.3.1** — A device with no hub chosen now uses the one hub that is in service, rather than counting hubs that are disabled in Indigo.
 
 Every version is listed in the [version history](https://highsteads.github.io/BroadlinkRF/changelog.html).
 

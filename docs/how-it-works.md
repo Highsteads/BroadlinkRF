@@ -29,7 +29,7 @@ An RM4 Pro that drops off the network gives no sign. It stops answering, and wit
 
 So the plugin asks each hub whether it is there, as often as you choose in the hub's **Watchdog** settings. The hub is asked twice before the plugin decides it is missing, because one missed answer on Wi-Fi proves little.
 
-- **The first time it does not answer**, the log has one error line saying so, and the device shows **unreachable** in red, so anything that watches for failed devices sees it too. The plugin remembers this even if it restarts, so it does not say it again.
+- **The first time it does not answer**, the log has one error line saying so, and the device shows **unreachable** in red, so anything that watches for failed devices sees it too. It stays red through every later check, and through any button press that fails, until the hub answers again. The plugin remembers this even if it restarts, so it does not say it again.
 - **When it answers again**, the red clears and the log says how long it was away.
 - **If you have told it which switch or smart plug the hub runs from**, and the hub has been missing for the time you chose, the plugin switches that plug off for a few seconds. Indigo itself switches it back on, so the hub is not left without power if the plugin restarts part way through.
 - **It waits 15 minutes between attempts**, because the hub takes about ten minutes to rejoin the network after losing power, and cutting it again sooner would interrupt that.

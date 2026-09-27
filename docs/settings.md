@@ -36,7 +36,7 @@ These are in the lower part of the same dialog. [How it works](how-it-works.md) 
 
 | Setting | What it does |
 |---|---|
-| **Check the hub every** | How often the plugin asks the hub whether it is there — 2, 5, 10 or 30 minutes, or **Never (watchdog off)**. It is 5 minutes to start with, which suits most houses. |
+| **Check the hub every** | How often the plugin asks the hub whether it is there — 2, 5, 10 or 30 minutes, or **Never (watchdog off)**. It is 5 minutes to start with, which suits most houses. If you choose **Never** while the hub is showing **unreachable**, the red clears, because nothing is checking any more. |
 | **Power-cycle using** | The switch or smart plug the hub is plugged into. The list shows the on and off devices in Indigo, leaving out this plugin's own relays. Leave it on **None -- report only** and the watchdog tells you the hub is missing but does not try to fix it. |
 | **Cut power after** | How long the hub must be missing before the plugin cuts its power — 5, 10, 15 or 30 minutes, and 10 to start with. Ten minutes is enough to rule out the hub restarting on its own or a brief Wi-Fi problem. |
 | **Hold the power off for** | How long the power stays off — 5, 10, 20 or 30 seconds, and 10 to start with. Indigo switches it back on by itself. |

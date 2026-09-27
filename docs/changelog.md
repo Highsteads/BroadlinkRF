@@ -7,6 +7,12 @@ nav_order: 10
 
 The newest version is at the top.
 
+## 1.6.0 — 27 September 2026
+
+- **An unreachable hub now stays red until it answers again.** The plugin already showed the hub in red the first time it stopped answering, but the next check a few minutes later cleared the red while the hub was still missing, and so did any button press that failed. Anything in Indigo that watches for failed devices hardly ever saw it. The red now stays until the hub answers a check.
+- **Choosing Never for the hub check** while the hub shows unreachable now clears the red, since nothing is checking any more.
+- **A button sent from a Command device** no longer makes Indigo log an error about a state the device does not have.
+
 ## 1.5.0 — 27 September 2026
 
 - **Default RF frequency** in the plugin's settings can now be left blank. The learn dialogs always said blank means the hub finds the frequency for you, but the settings refused a blank box. Blank now does the same as `0`.

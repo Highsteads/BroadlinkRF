@@ -44,13 +44,26 @@ class FakeDevice:
     def stateListOrDisplayStateIdChanged(self):
         pass
 
-    def updateStatesOnServer(self, rows):
+    # Like Indigo, every state write CLEARS the device's error state unless it
+    # is told not to. A fake that skipped this is how a watchdog error that
+    # never survived its next write passed every test (1.6.0).
+    batch_takes_clear_flag = True     # set False to mimic a batch call refusing it
+    single_writes = 0
+
+    def updateStatesOnServer(self, rows, **kw):
+        if kw and not self.batch_takes_clear_flag:
+            raise TypeError("updateStatesOnServer() got an unexpected keyword argument")
         for row in rows:
             self.states[row["key"]] = row["value"]
         self.state_writes.append({r["key"]: r["value"] for r in rows})
+        if kw.get("clearErrorState", True):
+            self.errorState = ""
 
-    def updateStateOnServer(self, key, value):
+    def updateStateOnServer(self, key, value, clearErrorState=True, **_kw):
         self.states[key] = value
+        self.single_writes += 1
+        if clearErrorState:
+            self.errorState = ""
 
     def setErrorStateOnServer(self, message):
         self.errorState = message
