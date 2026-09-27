@@ -1,8 +1,16 @@
 ####################
 # Broadlink RF for Indigo
 # Local-LAN RF control for Broadlink RM4 Pro devices.
-# Version: 1.4.0
+# Version: 1.5.0
 ####################
+#
+# v1.5.0 (27-09-2026, CliveS & Claude Opus 5.5): three faults found while
+# writing the guide. A blank Default RF frequency is accepted and means "scan",
+# as both learn dialogs promise (it was refused, and would have read as
+# 433.92). Reload RF Code Store on a Command or Relay device reloads its hub's
+# store, not the plugin-wide one. Learn RF Command no longer sets a Command
+# device's Selected RF Code to a code the device does not send, and on a hub
+# it learns with that hub.
 #
 # v1.4.0 (21-09-2026): POWER-METER FEEDBACK. An RF relay can now be pointed at
 # a power meter on the appliance it switches -- a smart plug's watts, say -- and
@@ -141,7 +149,10 @@ class Plugin(indigo.PluginBase):
                     errors["defaultHost"] = "Enter a valid IP address or hostname."
 
         self._validate_number(values_dict, "defaultPort", 1, 65535, errors, integer=True)
-        self._validate_frequency(values_dict.get("defaultFrequency", ""), "defaultFrequency", errors)
+        # Blank is allowed: both learn dialogs say "blank or 0 to scan" and are
+        # pre-filled from this setting, so refusing it here broke that promise.
+        self._validate_frequency(values_dict.get("defaultFrequency", ""), "defaultFrequency", errors,
+                                 allow_blank=True)
         self._validate_repeat(values_dict.get("defaultRepeat", ""), "defaultRepeat", errors)
         if not str(values_dict.get("codeStorePath", "")).strip():
             errors["codeStorePath"] = "Enter a path for the RF code store."
@@ -968,14 +979,16 @@ class Plugin(indigo.PluginBase):
         self._send_from_device(dev, name)
 
     def learn_rf_command(self, action, dev):
-        hub = self._hub_for_command(dev)
+        # On a hub, learn with that hub. _hub_for_command() reads a hubDevice
+        # prop a hub does not have, so with two hubs it found none.
+        hub = dev if dev.deviceTypeId == "rm4Pro" else self._hub_for_command(dev)
         if hub is None:
             self.logger.error("No RM4 Pro selected for '%s'", dev.name)
             return
         props = getattr(action, "props", {})
         name = str(props.get("codeName", dev.pluginProps.get("codeName", ""))).strip()
         frequency = props.get("frequency", self._hub_frequency(hub))
-        self._start_learning(hub, name, frequency, target_dev=dev)
+        self._start_learning(hub, name, frequency, target_dev=None if dev.id == hub.id else dev)
 
     def scan_rf_frequency(self, action, dev):
         hub = dev if dev.deviceTypeId == "rm4Pro" else self._hub_for_command(dev)
@@ -989,8 +1002,15 @@ class Plugin(indigo.PluginBase):
         self._send_code(hub=dev, code_name=name, target_dev=dev)
 
     def import_codes(self, action, dev):
-        count = len(self._load_codes(dev if dev.deviceTypeId == "rm4Pro" else None, force=True))
-        self.logger.info("RF code store reloaded: %d code(s) available", count)
+        # A Command or Relay device sends from its hub's store, so that is the
+        # store to reload -- not the plugin-wide one, which a hub with its own
+        # store path never reads.
+        hub = dev if dev.deviceTypeId == "rm4Pro" else self._hub_for_command(dev)
+        if hub is None:
+            self.logger.error("No RM4 Pro selected for '%s'; no RF code store reloaded", dev.name)
+            return
+        count = len(self._load_codes(hub, force=True))
+        self.logger.info("RF code store for '%s' reloaded: %d code(s) available", hub.name, count)
 
     def diagnose_hub(self, action, dev):
         hub = dev if dev.deviceTypeId == "rm4Pro" else self._hub_for_command(dev)
@@ -1146,13 +1166,17 @@ class Plugin(indigo.PluginBase):
                     lastError="",
                 )
                 if target_dev is not None:
-                    self._update_states(
-                        target_dev,
-                        selectedCode=code_name,
-                        selectedFrequency=float(frequency),
-                        lastResult="Learned",
-                        lastError="",
-                    )
+                    # The action promises to SAVE a code under a name, not to
+                    # re-point the device. So the device keeps sending the code
+                    # in its settings, and selectedCode keeps saying which one
+                    # that is. Only when the device's own code was re-learned
+                    # does its selection change: the new capture's frequency.
+                    updates = {"lastResult": "Learned", "lastError": ""}
+                    if (target_dev.deviceTypeId == "rfCommand"
+                            and str(target_dev.pluginProps.get("codeName", "")).strip() == code_name):
+                        updates["selectedCode"] = code_name
+                        updates["selectedFrequency"] = float(frequency)
+                    self._update_states(target_dev, **updates)
                 self.logger.info("RF code '%s' learned: %.3f MHz, %d bytes", code_name, frequency, len(packet))
             except Exception as exc:
                 self.logger.exception("Broadlink RF learning failed: %s", exc)
@@ -1299,7 +1323,11 @@ class Plugin(indigo.PluginBase):
         return str(hub.pluginProps.get("host", self.pluginPrefs.get("defaultHost", ""))).strip()
 
     def _hub_frequency(self, hub):
-        return self._as_float(hub.pluginProps.get("frequency", self.pluginPrefs.get("defaultFrequency", 433.92)), 433.92)
+        value = hub.pluginProps.get("frequency", self.pluginPrefs.get("defaultFrequency", 433.92))
+        # A blank frequency means "scan", exactly as 0 does -- not 433.92.
+        if not str(value if value is not None else "").strip():
+            return 0.0
+        return self._as_float(value, 433.92)
 
     def _hub_repeat(self, hub):
         return self._as_int(hub.pluginProps.get("repeat", self.pluginPrefs.get("defaultRepeat", 3)), 3)

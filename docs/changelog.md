@@ -7,6 +7,12 @@ nav_order: 10
 
 The newest version is at the top.
 
+## 1.5.0 — 27 September 2026
+
+- **Default RF frequency** in the plugin's settings can now be left blank. The learn dialogs always said blank means the hub finds the frequency for you, but the settings refused a blank box. Blank now does the same as `0`.
+- **Reload RF Code Store** used on a Command or Relay device now reads that device's hub's file of buttons. Before, it read the plugin's own file, which is not the one the device uses if its hub keeps its buttons somewhere else.
+- **Learn RF Command...** used on a Command device no longer puts the new button's name in **Selected RF Code**. The device carries on pressing the button chosen in its settings, and now says so. Used on a hub, it learns through that hub, even when you have more than one.
+
 ## 1.4.0 — 21 September 2026
 
 - **A relay can follow a power meter** on the appliance it switches, such as the smart plug a fire runs from. Its On or Off then comes from the reading instead of the last button pressed.

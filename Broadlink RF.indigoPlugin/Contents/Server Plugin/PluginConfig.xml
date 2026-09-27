@@ -12,7 +12,7 @@
     </Field>
     <Field id="defaultFrequency" type="textfield" defaultValue="433.92">
         <Label>Default RF frequency (MHz):</Label>
-        <Description>Use 433.92 for the existing captures. Leave blank only when using frequency scan.</Description>
+        <Description>Use 433.92 for the existing captures. Blank or 0 scans for the frequency when learning.</Description>
     </Field>
     <Field id="defaultRepeat" type="menu" defaultValue="3">
         <Label>Default transmit repeats:</Label>

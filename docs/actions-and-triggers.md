@@ -23,12 +23,12 @@ To use one of these, add an action, choose it from the **Broadlink RF** actions,
 |---|---|
 | **Send RF Command** | For a **Broadlink RF Command** device. Presses its button. |
 | **Send Code from RM4 Pro** | For a **Broadlink RM4 Pro** device. Presses any stored button you pick in **RF command**, without making a device for it. |
-| **Learn RF Command...** | For a Command or Relay device. Learns a new button through that device's hub, in the same way as the menu item on the [Learning buttons](learning.md) page, with the same **Save as code name** and **Frequency (MHz)** boxes. The device keeps pressing the button chosen in its own settings, so to use the new one, open the device and choose it. |
+| **Learn RF Command...** | Learns a new button through a hub, in the same way as the menu item on the [Learning buttons](learning.md) page, with the same **Save as code name** and **Frequency (MHz)** boxes. The device keeps pressing the button chosen in its own settings, and its **Selected RF Code** goes on showing that button, so to use the new one, open the device and choose it. |
 | **Scan RF Frequency** | Listens for a remote for up to 30 seconds and finds the frequency it uses. Hold a button on the remote near the hub while it runs. The log gives the frequency, and the hub's **RF Frequency** shows it. It does not change any setting. |
-| **Reload RF Code Store** | Reads the file of stored buttons again. The plugin notices when the file changes, so you should rarely need this. |
+| **Reload RF Code Store** | Reads the hub's file of stored buttons again, and says in the log how many it holds. The plugin notices when the file changes, so you should rarely need this. |
 | **Diagnose RM4 Pro** | Connects to the hub and writes its model, firmware version and number of stored buttons to the log, and fills in its **Firmware Version**. |
 
-**Scan RF Frequency** and **Diagnose RM4 Pro** also work on a Command or Relay device, and then act on that device's hub.
+**Learn RF Command...**, **Scan RF Frequency**, **Reload RF Code Store** and **Diagnose RM4 Pro** work on a hub, or on a Command or Relay device, and then act on that device's hub.
 
 ## Triggers
 

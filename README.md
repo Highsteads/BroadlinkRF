@@ -2,7 +2,7 @@
 
 **Press the buttons on your appliances' radio remotes from Indigo, through a Broadlink RM4 Pro on your home network.**
 
-**Version:** 1.4.0 | **Author:** CliveS & Claude | **Needs:** Indigo 2025.1 or later and a Broadlink RM4 Pro
+**Version:** 1.5.0 | **Author:** CliveS & Claude | **Needs:** Indigo 2025.1 or later and a Broadlink RM4 Pro
 
 **[Read the full guide](https://highsteads.github.io/BroadlinkRF/)** — setting up, what everything means, and what to do when something goes wrong.
 
@@ -48,13 +48,16 @@ The [full guide](https://highsteads.github.io/BroadlinkRF/) goes through each st
 
 ## What's new
 
+**v1.5.0** — Fixes found while writing the guide.
+- **Default RF frequency** can be left blank, and then the hub finds the frequency, as the learn dialogs say.
+- **Reload RF Code Store** on a Command or Relay device reads that device's hub's file.
+- **Learn RF Command** no longer shows a new button in **Selected RF Code** while the device still presses its old one.
+
 **v1.4.0** — A relay can follow a power meter on the appliance it switches, and its On or Off then comes from the reading instead of the last button pressed.
 - Presses on the appliance's own remote show in Indigo.
 - A press the appliance ignored is reported as ignored, with the reading.
 - **Toggle** goes the right way even after someone used the handset.
 - New **Measured Watts**, **Measured State**, **Feedback Status** and **Heavy Load** states for triggers and control pages.
-
-**v1.3.2** — Notes in the code only. Nothing the plugin does changed.
 
 **v1.3.1** — A device with no hub chosen now uses the one hub that is in service, rather than counting hubs that are disabled in Indigo.
 
