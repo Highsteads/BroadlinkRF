@@ -16,7 +16,7 @@ Open these with **Plugins → Broadlink RF → Configure**. They are starting va
 | **Default RF frequency (MHz)** | The frequency filled in when you open **Learn RF Command...** from the Plugins menu, `433.92` to start with. Leave it blank or put `0` to have the hub find the frequency first. Anything else must be between 250 and 500. |
 | **Default transmit repeats** | How many times a button is sent, when a hub device has no number of its own — 1, 2, 3 or 5, and 3 to start with. |
 | **RF code store** | The file on the Mac that holds the learned buttons. **List Stored RF Codes** and **Reload RF Code Store** in the Plugins menu read this file. Keep it the same as the hub's **RF code store** unless you have a reason not to. |
-| **Debug logging** | Adds more detail to the log, such as each check of the hub that goes unanswered. Only useful when chasing a problem. It takes effect the next time the plugin starts. |
+| **Debug logging** | Adds more detail to the log, such as each check of the hub that goes unanswered. Only useful when chasing a problem. It takes effect as soon as you press Save. |
 
 ## The hub's settings
 

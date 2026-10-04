@@ -1,8 +1,12 @@
 ####################
 # Broadlink RF for Indigo
 # Local-LAN RF control for Broadlink RM4 Pro devices.
-# Version: 1.6.0
+# Version: 1.6.1
 ####################
+#
+# v1.6.1 (04-10-2026, CliveS & Claude Opus 5.5): unticking Debug in Configure
+# now takes effect on Save (closedPrefsConfigUi). It was read only at startup,
+# so debug lines kept reaching the event log until the plugin restarted.
 #
 # v1.6.0 (27-09-2026, CliveS & Claude Opus 5.5): the watchdog's "unreachable"
 # error now stands until the hub answers. Every state write cleared it by
@@ -171,6 +175,16 @@ class Plugin(indigo.PluginBase):
             errors["showAlertText"] = "Please correct the highlighted Broadlink RF settings."
             return False, values_dict, errors
         return True, values_dict
+
+    def closedPrefsConfigUi(self, values_dict, user_cancelled):
+        # 1.6.1: the Debug box took effect only at startup, so unticking it and
+        # pressing Save left debug lines in the event log until a restart.
+        if user_cancelled:
+            return
+        debug = self._as_bool(values_dict.get("debugLogging", False))
+        if debug != self.debug:
+            self.debug = debug
+            self.logger.info("Debug logging %s", "on" if debug else "off")
 
     def validateDeviceConfigUi(self, values_dict, type_id, dev_id):
         errors = indigo.Dict()

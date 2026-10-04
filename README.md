@@ -2,7 +2,7 @@
 
 **Press the buttons on your appliances' radio remotes from Indigo, through a Broadlink RM4 Pro on your home network.**
 
-**Version:** 1.6.0 | **Author:** CliveS & Claude | **Needs:** Indigo 2025.1 or later and a Broadlink RM4 Pro
+**Version:** 1.6.1 | **Author:** CliveS & Claude | **Needs:** Indigo 2025.1 or later and a Broadlink RM4 Pro
 
 **[Read the full guide](https://highsteads.github.io/BroadlinkRF/)** — setting up, what everything means, and what to do when something goes wrong.
 
@@ -47,6 +47,8 @@ The first time the plugin starts, Indigo downloads the `broadlink` software it n
 The [full guide](https://highsteads.github.io/BroadlinkRF/) goes through each step, explains every setting, and covers what to do if something does not work.
 
 ## What's new
+
+**v1.6.1** — Unticking **Debug logging** in the plugin's settings takes effect when you press Save. Before, the extra lines kept coming until the plugin restarted.
 
 **v1.6.0** — An unreachable hub stays red until it answers again.
 - The next check, or a failed button press, no longer clears the red while the hub is still missing.

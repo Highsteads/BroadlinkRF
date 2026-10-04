@@ -7,6 +7,10 @@ nav_order: 10
 
 The newest version is at the top.
 
+## 1.6.1 — 4 October 2026
+
+- **Debug logging** now takes effect when you press Save in the plugin's settings. Before, it was read only when the plugin started, so unticking it left the extra lines coming until a restart.
+
 ## 1.6.0 — 27 September 2026
 
 - **An unreachable hub now stays red until it answers again.** The plugin already showed the hub in red the first time it stopped answering, but the next check a few minutes later cleared the red while the hub was still missing, and so did any button press that failed. Anything in Indigo that watches for failed devices hardly ever saw it. The red now stays until the hub answers a check.
