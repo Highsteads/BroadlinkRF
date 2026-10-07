@@ -7,6 +7,10 @@ nav_order: 10
 
 The newest version is at the top.
 
+## 1.6.2 — 7 October 2026
+
+- **The hub's watchdog settings now always show.** **Cut power after**, **Hold the power off for** and **Try at most** were meant to appear once you picked a plug in **Power-cycle using**. Indigo showed them only while it was on **None**, when they do nothing, and hid them as soon as you chose a plug. They still apply only when a plug is chosen, and the dialog now says so. Nothing you saved changes.
+
 ## 1.6.1 — 4 October 2026
 
 - **Debug logging** now takes effect when you press Save in the plugin's settings. Before, it was read only when the plugin started, so unticking it left the extra lines coming until a restart.

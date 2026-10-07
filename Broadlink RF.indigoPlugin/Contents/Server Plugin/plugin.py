@@ -1,8 +1,18 @@
 ####################
 # Broadlink RF for Indigo
 # Local-LAN RF control for Broadlink RM4 Pro devices.
-# Version: 1.6.1
+# Version: 1.6.2
 ####################
+#
+# v1.6.2 (07-10-2026, CliveS & Claude Opus 5.5): the hub dialog's three
+# recovery settings (Cut power after, Hold the power off for, Try at most) and
+# their note were bound to Power-cycle using with visibleBindingValue="!0".
+# Indigo has no negation: a bound field shows when that string CONTAINS the
+# menu's current value, so "!0" showed them only while the menu was "0"
+# (None), when they do nothing, and hid them once a plug was picked. The
+# bindings are gone, so the fields always show, and the Power-cycle note says
+# they apply only when a plug is chosen. No field id or default changed.
+# tests/test_dialog_xml.py fails on any binding value starting with "!".
 #
 # v1.6.1 (04-10-2026, CliveS & Claude Opus 5.5): unticking Debug in Configure
 # now takes effect on Save (closedPrefsConfigUi). It was read only at startup,

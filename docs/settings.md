@@ -42,7 +42,7 @@ These are in the lower part of the same dialog. [How it works](how-it-works.md) 
 | **Hold the power off for** | How long the power stays off — 5, 10, 20 or 30 seconds, and 10 to start with. Indigo switches it back on by itself. |
 | **Try at most** | How many times the plugin cuts the power before it gives up and leaves the hub alone — once, twice or three times, and twice to start with. It waits 15 minutes between attempts, and starts counting again once the hub answers. |
 
-**Cut power after**, **Hold the power off for** and **Try at most** only appear once you pick something in **Power-cycle using**. The time missing is counted from the first check the hub did not answer, and the power is only cut at a check, so with checks every 5 minutes and **Cut power after** at 10 minutes, the power goes off two checks after the hub first went quiet.
+**Cut power after**, **Hold the power off for** and **Try at most** always show, but they apply only when you pick a plug in **Power-cycle using**. With it on **None**, the watchdog reports a missing hub and does nothing else, whatever these say. The time missing is counted from the first check the hub did not answer, and the power is only cut at a check, so with checks every 5 minutes and **Cut power after** at 10 minutes, the power goes off two checks after the hub first went quiet.
 
 ## A relay's settings
 

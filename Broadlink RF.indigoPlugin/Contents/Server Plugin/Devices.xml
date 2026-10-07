@@ -48,9 +48,9 @@
                 <List class="self" method="switchable_devices" dynamicReload="true"/>
             </Field>
             <Field id="recoveryPlugNote" type="label" fontSize="small">
-                <Label>The switch or smart plug the RM4 Pro is plugged into. Leave this on “None” and the watchdog will report the hub missing but will not try to fix it.</Label>
+                <Label>The switch or smart plug the RM4 Pro is plugged into. Leave this on “None” and the watchdog will report the hub missing but will not try to fix it. The settings below apply only when you choose a plug here.</Label>
             </Field>
-            <Field id="recoveryAfterMinutes" type="menu" defaultValue="10" visibleBindingId="recoveryPlug" visibleBindingValue="!0">
+            <Field id="recoveryAfterMinutes" type="menu" defaultValue="10">
                 <Label>Cut power after:</Label>
                 <List>
                     <Option value="5">5 minutes missing</Option>
@@ -59,7 +59,7 @@
                     <Option value="30">30 minutes missing</Option>
                 </List>
             </Field>
-            <Field id="recoveryOffSeconds" type="menu" defaultValue="10" visibleBindingId="recoveryPlug" visibleBindingValue="!0">
+            <Field id="recoveryOffSeconds" type="menu" defaultValue="10">
                 <Label>Hold the power off for:</Label>
                 <List>
                     <Option value="5">5 seconds</Option>
@@ -68,7 +68,7 @@
                     <Option value="30">30 seconds</Option>
                 </List>
             </Field>
-            <Field id="recoveryMaxAttempts" type="menu" defaultValue="2" visibleBindingId="recoveryPlug" visibleBindingValue="!0">
+            <Field id="recoveryMaxAttempts" type="menu" defaultValue="2">
                 <Label>Try at most:</Label>
                 <List>
                     <Option value="1">once</Option>
@@ -76,7 +76,7 @@
                     <Option value="3">three times</Option>
                 </List>
             </Field>
-            <Field id="recoveryGiveUpNote" type="label" fontSize="small" visibleBindingId="recoveryPlug" visibleBindingValue="!0">
+            <Field id="recoveryGiveUpNote" type="label" fontSize="small">
                 <Label>After the last attempt the watchdog stops cutting power and leaves the hub alone, so a dead unit cannot be cycled all night. It allows 15 minutes between attempts, because an RM4 Pro takes about ten minutes to rejoin a network after losing power.</Label>
             </Field>
         </ConfigUI>
